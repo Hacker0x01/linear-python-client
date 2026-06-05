@@ -1,0 +1,76 @@
+name: Build & Release
+
+on:
+  # Build + verify on every push/PR; attach artifacts to the GitHub Release when one is published.
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Lint
+        run: uv run ruff check
+
+      - name: Test (with coverage gate)
+        run: uv run pytest
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Validate distribution metadata
+        run: uvx twine check dist/*
+
+      - name: Smoke-test that the wheel installs and imports
+        run: |
+          uv venv /tmp/install-check
+          uv pip install --python /tmp/install-check dist/*.whl
+          /tmp/install-check/bin/python -c "import linear_python; print('installed', linear_python.__version__)"
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  release-assets:
+    needs: [test, build]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to attach assets to the GitHub Release.
+      contents: write
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Attach sdist + wheel to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release upload "${{ github.event.release.tag_name }}" dist/*
+          --repo "${{ github.repository }}" --clobber

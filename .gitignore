@@ -12,3 +12,9 @@ wheels/
 # MkDocs build output
 site/
 .cache/
+
+# Test / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/

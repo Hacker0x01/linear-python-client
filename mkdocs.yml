@@ -1,0 +1,88 @@
+site_name: linear-python
+site_description: Pragmatic Python client for the Linear GraphQL API
+# Update these if the repository lives under a different owner/name.
+site_url: https://ewinter-hackerone.github.io/linear-python/
+repo_url: https://github.com/ewinter-hackerone/linear-python
+repo_name: ewinter-hackerone/linear-python
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            members_order: source
+            filters:
+              - "!^_"
+          inventories:
+            - https://docs.python.org/3/objects.inv
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Usage guide: usage.md
+  - API reference:
+      - Client: api/client.md
+      - Requests: api/requests.md
+      - Responses: api/responses.md
+      - Models: api/models.md
+      - Errors: api/errors.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ewinter-hackerone/linear-python
