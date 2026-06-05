@@ -1,4 +1,4 @@
-# linear-python
+# linear-python-client
 
 A small, pragmatic synchronous Python client for the [Linear](https://linear.app)
 GraphQL API. Linear's official SDK is TypeScript-only — this package gives Python
@@ -13,15 +13,10 @@ Built against the [Linear developer docs](https://linear.app/developers).
 
 ## Installation
 
-The package is distributed as assets on its [GitHub Releases](https://github.com/Hacker0x01/linear-python/releases)
-(not on PyPI). Install the wheel from a release, or straight from a tag:
-
 ```sh
-# from a release wheel
-uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
-
-# or from a tag (builds from source)
-uv pip install "git+https://github.com/Hacker0x01/linear-python@v0.1.0"
+uv add linear-python-client
+# or
+pip install linear-python-client
 ```
 
 Or for local development of this repo:
@@ -37,7 +32,7 @@ Requires Python 3.14+.
 The client accepts either a personal API key or an OAuth 2.0 access token.
 
 ```python
-from linear_python import LinearClient
+from linear_python_client import LinearClient
 
 # Personal API key (sent as the raw `Authorization` header value)
 client = LinearClient(api_key="lin_api_...")
@@ -61,7 +56,7 @@ with LinearClient() as client:
 Each method takes a `*Request` and returns a `*Response`:
 
 ```python
-from linear_python import (
+from linear_python_client import (
     LinearClient,
     IssueRequest,
     IssueCreateRequest,
@@ -111,7 +106,7 @@ directly to Linear's [filtering syntax](https://linear.app/developers/filtering)
 return a `*Response` that holds `.nodes` and `.page_info` (and is iterable).
 
 ```python
-from linear_python import IssuesRequest
+from linear_python_client import IssuesRequest
 
 # First 20 high-priority issues assigned to a specific user
 resp = client.issues(
@@ -140,6 +135,32 @@ for issue in client.paginate(client.issues, IssuesRequest(filter={"state": {"typ
 
 `paginate()` works with any list method (`client.issues`, `client.teams`,
 `client.projects`, `client.comments`, `client.users`, …) and its matching request.
+
+## Labels, status & full details
+
+```python
+from linear_python_client import (
+    IssueAddLabelRequest,
+    IssueRemoveLabelRequest,
+    IssueSetStateRequest,
+    FindWorkflowStateRequest,
+    IssueRequest,
+)
+
+# Add / remove a single label without disturbing the issue's other labels
+client.add_label(IssueAddLabelRequest(id=issue_id, label_id=label_id))
+client.remove_label(IssueRemoveLabelRequest(id=issue_id, label_id=label_id))
+
+# Update status: resolve a state by name, then set it
+state = client.find_workflow_state(FindWorkflowStateRequest(team_id=team_id, name="In Progress")).state
+client.set_issue_state(IssueSetStateRequest(id=issue_id, state_id=state.id))
+
+# Full details: comments, attachments, project, cycle, parent, sub-issues, subscribers, relations
+detail = client.issue_details(IssueRequest(id="ENG-123")).issue
+print(detail.state.name, len(detail.comments), len(detail.attachments))
+for child in detail.children:
+    print("sub-issue:", child.identifier, child.title)
+```
 
 ## Escape hatch: raw GraphQL
 
@@ -170,7 +191,7 @@ All exceptions subclass `LinearError`:
 | `LinearNetworkError` | The request never produced a usable response |
 
 ```python
-from linear_python import LinearClient, LinearRateLimitError, IssuesRequest
+from linear_python_client import LinearClient, LinearRateLimitError, IssuesRequest
 
 try:
     client.issues(IssuesRequest(first=100))
@@ -190,16 +211,21 @@ Each method maps a `*Request` to a `*Response`:
 | `team(...)` | `TeamRequest` | `TeamResponse` |
 | `teams(...)` | `TeamsRequest` | `TeamsResponse` |
 | `issue(...)` | `IssueRequest` | `IssueResponse` |
+| `issue_details(...)` | `IssueRequest` | `IssueDetailsResponse` |
 | `issues(...)` | `IssuesRequest` | `IssuesResponse` |
 | `create_issue(...)` | `IssueCreateRequest` | `CreateIssueResponse` |
 | `update_issue(...)` | `IssueUpdateRequest` | `UpdateIssueResponse` |
 | `archive_issue(...)` | `IssueArchiveRequest` | `ArchiveIssueResponse` |
+| `add_label(...)` | `IssueAddLabelRequest` | `AddLabelResponse` |
+| `remove_label(...)` | `IssueRemoveLabelRequest` | `RemoveLabelResponse` |
+| `set_issue_state(...)` | `IssueSetStateRequest` | `UpdateIssueResponse` |
 | `project(...)` | `ProjectRequest` | `ProjectResponse` |
 | `projects(...)` | `ProjectsRequest` | `ProjectsResponse` |
 | `comment(...)` | `CommentRequest` | `CommentResponse` |
 | `comments(...)` | `CommentsRequest` | `CommentsResponse` |
 | `create_comment(...)` | `CommentCreateRequest` | `CreateCommentResponse` |
 | `workflow_states(...)` | `WorkflowStatesRequest` | `WorkflowStatesResponse` |
+| `find_workflow_state(...)` | `FindWorkflowStateRequest` | `WorkflowStateResponse` |
 | `issue_labels(...)` | `IssueLabelsRequest` | `IssueLabelsResponse` |
 | `execute(query, variables)` | – | `dict` |
 | `paginate(method, request)` | a `*Request` | iterator of nodes |
@@ -222,6 +248,22 @@ needed. An optional live smoke test runs only when `LINEAR_API_KEY` is set.
 prints after each run — add `--cov-report=html` for an annotated HTML report in
 `htmlcov/`.
 
+### Live smoke test
+
+`scripts/smoke_test.py` exercises **every** client method against the real Linear API
+and, after each mutation, re-pulls the issue to confirm the change landed (create →
+update → set status → add/remove label → comment → full details). It creates one
+clearly-labelled test issue and archives it at the end, so it cleans up after itself.
+
+```sh
+LINEAR_API_KEY=lin_api_... uv run python scripts/smoke_test.py
+# optionally pin the team (defaults to the first one):
+LINEAR_API_KEY=... LINEAR_TEAM_ID=<uuid> uv run python scripts/smoke_test.py
+```
+
+It prints a ✓/✗ per check and exits non-zero if any fail. Because it writes to your
+workspace, it's a manual script — it is not part of `pytest`.
+
 ### Building & releasing
 
 Build the distributions locally with uv:
@@ -234,23 +276,19 @@ uvx twine check dist/*  # validate metadata / README rendering
 Releases are automated by [`.github/workflows/publish.yml`](.github/workflows/publish.yml).
 On every push and PR it lints, tests (with the coverage gate), builds the sdist + wheel,
 validates the metadata, and smoke-tests that the wheel installs and imports. When a
-**GitHub Release is published**, it additionally attaches the built sdist + wheel as
-assets on that release.
+**GitHub Release is published**, it additionally publishes the build to PyPI — after
+which `pip install linear-python-client` and `uv add linear-python-client` work.
+
+Publishing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
+(OIDC), so no API token or secret is stored. One-time setup:
+
+1. On PyPI, add a trusted publisher for the project pointing at this repo, workflow
+   `publish.yml`, and environment `pypi`.
+2. In the repo, create a `pypi` [environment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment)
+   (Settings → Environments).
 
 To cut a release: bump `version` in `pyproject.toml`, then create a matching GitHub
-Release (e.g. tag `v0.1.0`). The workflow uploads `linear_python-<version>.tar.gz` and
-`linear_python-<version>-py3-none-any.whl` to the release.
-
-Install from a release asset (the package is not published to PyPI):
-
-```sh
-# wheel
-uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
-pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
-
-# or straight from a tag (builds from source)
-uv pip install "git+https://github.com/Hacker0x01/linear-python@v0.1.0"
-```
+Release (e.g. tag `v0.1.0`) — the workflow builds and uploads it to PyPI.
 
 > [!NOTE]
 > `requires-python` is `>=3.14`, so installs require Python 3.14+.

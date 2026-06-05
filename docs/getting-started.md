@@ -2,16 +2,10 @@
 
 ## Install
 
-The package is distributed as assets on its
-[GitHub Releases](https://github.com/Hacker0x01/linear-python/releases) (not on
-PyPI):
-
 ```sh
-# from a release wheel
-uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
-
-# or from a tag (builds from source)
-uv pip install "git+https://github.com/Hacker0x01/linear-python@v0.1.0"
+uv add linear-python-client
+# or
+pip install linear-python-client
 ```
 
 Or, working inside a clone of the repository:
@@ -39,7 +33,7 @@ You can authenticate in two ways:
 === "API key"
 
     ```python
-    from linear_python import LinearClient
+    from linear_python_client import LinearClient
 
     client = LinearClient(api_key="lin_api_...")
     ```
@@ -47,7 +41,7 @@ You can authenticate in two ways:
 === "OAuth token"
 
     ```python
-    from linear_python import LinearClient
+    from linear_python_client import LinearClient
 
     client = LinearClient(access_token="...")
     ```
@@ -56,7 +50,7 @@ You can authenticate in two ways:
 
     ```python
     # Reads LINEAR_API_KEY from the environment.
-    from linear_python import LinearClient
+    from linear_python_client import LinearClient
 
     client = LinearClient()
     ```
@@ -80,7 +74,7 @@ with LinearClient() as client:
 ```
 
 If the credentials are wrong you'll get a
-[`LinearAuthenticationError`][linear_python.LinearAuthenticationError]. See
+[`LinearAuthenticationError`][linear_python_client.LinearAuthenticationError]. See
 [Error handling](usage.md#error-handling) for the full list.
 
 Next: the [Usage guide](usage.md).

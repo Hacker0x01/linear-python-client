@@ -1,4 +1,4 @@
-"""GraphQL query and mutation strings used by :class:`linear_python.client.LinearClient`.
+"""GraphQL query and mutation strings used by :class:`linear_python_client.client.LinearClient`.
 
 Field selections are factored into reusable fragments so the operations below stay
 readable and the requested fields line up with the dataclasses in ``models.py``.
@@ -93,6 +93,54 @@ fragment IssueFields on Issue {
 }
 """
 
+ATTACHMENT_FIELDS = """
+fragment AttachmentFields on Attachment {
+  id
+  title
+  subtitle
+  url
+  createdAt
+}
+"""
+
+CYCLE_FIELDS = """
+fragment CycleFields on Cycle {
+  id
+  number
+  name
+  startsAt
+  endsAt
+}
+"""
+
+# A shallow issue projection used for parent / sub-issues / related issues so the
+# detailed query stays bounded (no recursion into their relations).
+ISSUE_SUMMARY_FIELDS = """
+fragment IssueSummaryFields on Issue {
+  id
+  identifier
+  title
+  url
+  priority
+  state { ...StateFields }
+}
+"""
+
+# Full issue detail: the base fields plus the heavier related collections.
+ISSUE_DETAIL_FIELDS = """
+fragment IssueDetailFields on Issue {
+  ...IssueFields
+  comments { nodes { ...CommentFields } }
+  attachments { nodes { ...AttachmentFields } }
+  project { ...ProjectFields }
+  cycle { ...CycleFields }
+  parent { ...IssueSummaryFields }
+  children { nodes { ...IssueSummaryFields } }
+  subscribers { nodes { ...UserFields } }
+  relations { nodes { type relatedIssue { ...IssueSummaryFields } } }
+}
+"""
+
 
 def _compose(*parts: str) -> str:
     """Join an operation body with the fragments it depends on."""
@@ -161,6 +209,25 @@ ISSUE = _compose(
     """
 query Issue($id: String!) {
   issue(id: $id) { ...IssueFields }
+}
+""",
+)
+
+ISSUE_DETAILS = _compose(
+    ISSUE_DETAIL_FIELDS,
+    ISSUE_FIELDS,
+    ISSUE_SUMMARY_FIELDS,
+    USER_FIELDS,
+    TEAM_FIELDS,
+    STATE_FIELDS,
+    LABEL_FIELDS,
+    PROJECT_FIELDS,
+    COMMENT_FIELDS,
+    ATTACHMENT_FIELDS,
+    CYCLE_FIELDS,
+    """
+query IssueDetails($id: String!) {
+  issue(id: $id) { ...IssueDetailFields }
 }
 """,
 )
@@ -300,6 +367,38 @@ mutation CommentCreate($input: CommentCreateInput!) {
   commentCreate(input: $input) {
     success
     comment { ...CommentFields }
+  }
+}
+""",
+)
+
+ISSUE_ADD_LABEL = _compose(
+    ISSUE_FIELDS,
+    USER_FIELDS,
+    TEAM_FIELDS,
+    STATE_FIELDS,
+    LABEL_FIELDS,
+    """
+mutation IssueAddLabel($id: String!, $labelId: String!) {
+  issueAddLabel(id: $id, labelId: $labelId) {
+    success
+    issue { ...IssueFields }
+  }
+}
+""",
+)
+
+ISSUE_REMOVE_LABEL = _compose(
+    ISSUE_FIELDS,
+    USER_FIELDS,
+    TEAM_FIELDS,
+    STATE_FIELDS,
+    LABEL_FIELDS,
+    """
+mutation IssueRemoveLabel($id: String!, $labelId: String!) {
+  issueRemoveLabel(id: $id, labelId: $labelId) {
+    success
+    issue { ...IssueFields }
   }
 }
 """,

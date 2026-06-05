@@ -17,6 +17,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 
+def _unwrap_nodes(value: object) -> object:
+    """Accept Linear's `{ nodes: [...] }` connection shape, returning the node list."""
+    if isinstance(value, dict) and "nodes" in value:
+        return value["nodes"]
+    return value
+
+
 class LinearModel(BaseModel):
     """Base model: camelCase aliases, snake_case attributes, lenient parsing."""
 
@@ -124,6 +131,57 @@ class Issue(LinearModel):
     @classmethod
     def _unwrap_label_nodes(cls, value: object) -> object:
         """Accept Linear's `labels: { nodes: [...] }` connection shape."""
-        if isinstance(value, dict) and "nodes" in value:
-            return value["nodes"]
-        return value
+        return _unwrap_nodes(value)
+
+
+class Attachment(LinearModel):
+    """A link or file attached to an issue."""
+
+    id: str | None = None
+    title: str | None = None
+    subtitle: str | None = None
+    url: str | None = None
+    created_at: datetime | None = None
+
+
+class Cycle(LinearModel):
+    """A team cycle (sprint)."""
+
+    id: str | None = None
+    number: int | None = None
+    name: str | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+
+
+class IssueRelation(LinearModel):
+    """A relation from an issue to another (e.g. blocks, related, duplicate)."""
+
+    type: str | None = None
+    related_issue: Issue | None = None
+
+
+class IssueDetail(Issue):
+    """An issue plus its heavier related data, returned by `issue_details`.
+
+    Inherits every field of [`Issue`][linear_python_client.Issue] and adds the
+    related collections. As always, only the fields the query requested are
+    populated; `parent`, `children`, and relation targets are shallow issues.
+    """
+
+    comments: list[Comment] = Field(default_factory=list)
+    attachments: list[Attachment] = Field(default_factory=list)
+    project: Project | None = None
+    cycle: Cycle | None = None
+    parent: Issue | None = None
+    children: list[Issue] = Field(default_factory=list)
+    subscribers: list[User] = Field(default_factory=list)
+    relations: list[IssueRelation] = Field(default_factory=list)
+
+    @field_validator(
+        "comments", "attachments", "children", "subscribers", "relations", mode="before"
+    )
+    @classmethod
+    def _unwrap_connection_nodes(cls, value: object) -> object:
+        """Accept Linear's `{ nodes: [...] }` connection shape for the collections."""
+        return _unwrap_nodes(value)

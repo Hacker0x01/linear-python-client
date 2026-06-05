@@ -6,7 +6,7 @@ the [Responses reference](api/responses.md)). All examples assume an authenticat
 client:
 
 ```python
-from linear_python import LinearClient
+from linear_python_client import LinearClient
 
 client = LinearClient(api_key="lin_api_...")
 ```
@@ -16,7 +16,7 @@ client = LinearClient(api_key="lin_api_...")
 The pattern is always the same — build a `*Request`, get a `*Response`:
 
 ```python
-from linear_python import IssueRequest
+from linear_python_client import IssueRequest
 
 response = client.issue(IssueRequest(id="ENG-123"))  # -> IssueResponse
 issue = response.issue                                # -> Issue | None
@@ -26,7 +26,7 @@ Request fields are Pythonic snake_case with camelCase aliases, so both spellings
 work and serialisation back to the API is automatic:
 
 ```python
-from linear_python import IssueCreateRequest
+from linear_python_client import IssueCreateRequest
 
 IssueCreateRequest(team_id="t1", title="Hi")   # snake_case
 IssueCreateRequest(teamId="t1", title="Hi")    # camelCase — same thing
@@ -38,7 +38,7 @@ Each "get one" request takes an id (issues also accept their human identifier su
 `ENG-123`). The response wraps the entity, which is `None` if nothing matches.
 
 ```python
-from linear_python import IssueRequest, TeamRequest, ProjectRequest, UserRequest
+from linear_python_client import IssueRequest, TeamRequest, ProjectRequest, UserRequest
 
 issue = client.issue(IssueRequest(id="ENG-123")).issue
 print(issue.title, issue.state.name, issue.assignee.name)
@@ -46,6 +46,28 @@ print(issue.title, issue.state.name, issue.assignee.name)
 team = client.team(TeamRequest(id="9cfb482a-81e3-4154-b5b9-2c805e70a02d")).team
 project = client.project(ProjectRequest(id="...")).project
 user = client.user(UserRequest(id="...")).user
+```
+
+### Full issue details
+
+`issue()` returns the core fields. To also pull an issue's related data — comments,
+attachments, project, cycle, parent, sub-issues, subscribers, and relations — use
+`issue_details()`, which returns an [`IssueDetail`][linear_python_client.IssueDetail]:
+
+```python
+from linear_python_client import IssueRequest
+
+detail = client.issue_details(IssueRequest(id="ENG-123")).issue
+print(detail.state.name, detail.project.name if detail.project else None)
+
+for comment in detail.comments:
+    print(comment.user.name, comment.body)
+
+for child in detail.children:           # sub-issues (shallow)
+    print(child.identifier, child.title)
+
+for rel in detail.relations:            # e.g. blocks / related / duplicate
+    print(rel.type, rel.related_issue.identifier)
 ```
 
 ## Listing, filtering & ordering
@@ -56,7 +78,7 @@ return a response that holds `.nodes` and `.page_info`. The request is optional 
 it for the first page, unfiltered.
 
 ```python
-from linear_python import IssuesRequest
+from linear_python_client import IssuesRequest
 
 resp = client.issues(
     IssuesRequest(
@@ -97,12 +119,12 @@ client.issues(IssuesRequest(filter={"createdAt": {"gt": "-P2W"}}))
 
 ## Pagination
 
-Use [`paginate()`][linear_python.client.LinearClient.paginate] to transparently walk
+Use [`paginate()`][linear_python_client.client.LinearClient.paginate] to transparently walk
 every page of any list method. Pass the method and a starting request; it follows the
 cursor until there are no more results.
 
 ```python
-from linear_python import IssuesRequest, TeamsRequest
+from linear_python_client import IssuesRequest, TeamsRequest
 
 for issue in client.paginate(client.issues, IssuesRequest(filter={"state": {"type": {"eq": "started"}}})):
     print(issue.identifier, issue.title)
@@ -117,7 +139,7 @@ for team in client.paginate(client.teams, TeamsRequest(), page_size=100):
 Mutation responses expose `success` alongside the affected entity.
 
 ```python
-from linear_python import IssueCreateRequest, IssueUpdateRequest, IssueArchiveRequest
+from linear_python_client import IssueCreateRequest, IssueUpdateRequest, IssueArchiveRequest
 
 created = client.create_issue(
     IssueCreateRequest(
@@ -138,10 +160,44 @@ Any field accepted by Linear's `IssueCreateInput` / `IssueUpdateInput` can be pa
 as an extra keyword argument using its camelCase API name (e.g. `dueDate="2026-01-01"`),
 even if it isn't an explicit field on the request model.
 
+## Labels
+
+`update_issue(IssueUpdateRequest(id=..., label_ids=[...]))` replaces an issue's whole
+label set. To add or remove a single label without touching the others, use the
+dedicated methods:
+
+```python
+from linear_python_client import IssueAddLabelRequest, IssueRemoveLabelRequest
+
+client.add_label(IssueAddLabelRequest(id=issue_id, label_id=label_id))
+client.remove_label(IssueRemoveLabelRequest(id=issue_id, label_id=label_id))
+```
+
+Look up label UUIDs with [`issue_labels`](#workflow-states-labels).
+
+## Status (workflow state)
+
+Move an issue to a status with `set_issue_state`. Statuses are workflow states
+identified by UUID; resolve one by name (case-insensitive) within a team using
+`find_workflow_state`:
+
+```python
+from linear_python_client import FindWorkflowStateRequest, IssueSetStateRequest
+
+state = client.find_workflow_state(
+    FindWorkflowStateRequest(team_id=team_id, name="In Progress")
+).state
+
+client.set_issue_state(IssueSetStateRequest(id=issue_id, state_id=state.id))
+```
+
+`set_issue_state` is a focused wrapper over `update_issue`; you can equally set the
+status alongside other fields via `update_issue(IssueUpdateRequest(id=..., state_id=...))`.
+
 ## Comments
 
 ```python
-from linear_python import CommentCreateRequest, CommentsRequest
+from linear_python_client import CommentCreateRequest, CommentsRequest
 
 client.create_comment(CommentCreateRequest(issue_id=created.issue.id, body="On it 👍"))
 
@@ -152,7 +208,7 @@ for comment in client.comments(CommentsRequest(issue_id=created.issue.id)):
 ## Workflow states & labels
 
 ```python
-from linear_python import WorkflowStatesRequest, IssueLabelsRequest
+from linear_python_client import WorkflowStatesRequest, IssueLabelsRequest
 
 states = client.workflow_states(WorkflowStatesRequest(team_id="..."))
 labels = client.issue_labels(IssueLabelsRequest(first=100))
@@ -161,7 +217,7 @@ labels = client.issue_labels(IssueLabelsRequest(first=100))
 ## Raw GraphQL
 
 Anything not covered by a typed method can be run directly with
-[`execute()`][linear_python.client.LinearClient.execute], which returns the `data`
+[`execute()`][linear_python_client.client.LinearClient.execute], which returns the `data`
 object and raises on errors.
 
 ```python
@@ -182,17 +238,17 @@ print(data["issue"]["attachments"]["nodes"])
 
 ## Error handling
 
-All exceptions subclass [`LinearError`][linear_python.LinearError]:
+All exceptions subclass [`LinearError`][linear_python_client.LinearError]:
 
 | Exception | Raised when |
 |-----------|-------------|
-| [`LinearAuthenticationError`][linear_python.LinearAuthenticationError] | Credentials are rejected (HTTP 401/403 or an auth error code) |
-| [`LinearRateLimitError`][linear_python.LinearRateLimitError] | A rate limit is hit (`RATELIMITED`); carries the `X-RateLimit-*` header values |
-| [`LinearGraphQLError`][linear_python.LinearGraphQLError] | The API returns GraphQL `errors`; exposes `.errors` and `.code` |
-| [`LinearNetworkError`][linear_python.LinearNetworkError] | The request never produced a usable response |
+| [`LinearAuthenticationError`][linear_python_client.LinearAuthenticationError] | Credentials are rejected (HTTP 401/403 or an auth error code) |
+| [`LinearRateLimitError`][linear_python_client.LinearRateLimitError] | A rate limit is hit (`RATELIMITED`); carries the `X-RateLimit-*` header values |
+| [`LinearGraphQLError`][linear_python_client.LinearGraphQLError] | The API returns GraphQL `errors`; exposes `.errors` and `.code` |
+| [`LinearNetworkError`][linear_python_client.LinearNetworkError] | The request never produced a usable response |
 
 ```python
-from linear_python import LinearClient, LinearRateLimitError, IssuesRequest
+from linear_python_client import LinearClient, LinearRateLimitError, IssuesRequest
 
 try:
     client.issues(IssuesRequest(first=100))
@@ -204,6 +260,6 @@ except LinearRateLimitError as exc:
 
 Linear allows roughly **5,000 requests/hour** for API keys and OAuth apps, with a
 separate complexity budget. The client surfaces the relevant `X-RateLimit-*` header
-values on [`LinearRateLimitError`][linear_python.LinearRateLimitError] when a limit is
+values on [`LinearRateLimitError`][linear_python_client.LinearRateLimitError] when a limit is
 hit. See the [rate limiting docs](https://linear.app/developers/rate-limiting) for the
 full details.

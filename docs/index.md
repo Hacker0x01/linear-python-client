@@ -1,4 +1,4 @@
-# linear-python
+# linear-python-client
 
 A small, pragmatic **synchronous Python client** for the [Linear](https://linear.app)
 GraphQL API. Linear's official SDK is TypeScript-only — this package gives Python the
@@ -11,10 +11,10 @@ Built against the [Linear developer docs](https://linear.app/developers).
 ## Highlights
 
 - **One endpoint, one client.** Talk to `https://api.linear.app/graphql` through a
-  single [`LinearClient`][linear_python.LinearClient].
+  single [`LinearClient`][linear_python_client.LinearClient].
 - **Request in, Response out.** Each call is typed end to end, e.g.
-  [`IssueCreateRequest`][linear_python.IssueCreateRequest] →
-  [`CreateIssueResponse`][linear_python.CreateIssueResponse].
+  [`IssueCreateRequest`][linear_python_client.IssueCreateRequest] →
+  [`CreateIssueResponse`][linear_python_client.CreateIssueResponse].
 - **Pydantic models.** Snake_case attributes with camelCase aliases; validation and
   serialisation come for free.
 - **Both auth methods.** Personal API keys and OAuth 2.0 access tokens.
@@ -25,20 +25,18 @@ Built against the [Linear developer docs](https://linear.app/developers).
 
 ## Install
 
-Distributed as assets on [GitHub Releases](https://github.com/Hacker0x01/linear-python/releases)
-(not on PyPI):
-
 ```sh
-uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
+uv add linear-python-client
+# or
+pip install linear-python-client
 ```
 
-Requires Python 3.14+. See [Getting started](getting-started.md) for more install
-options.
+Requires Python 3.14+. See [Getting started](getting-started.md) for more detail.
 
 ## A 30-second tour
 
 ```python
-from linear_python import LinearClient, IssueCreateRequest, IssuesRequest
+from linear_python_client import LinearClient, IssueCreateRequest, IssuesRequest
 
 with LinearClient(api_key="lin_api_...") as client:
     print(client.viewer().viewer.name)

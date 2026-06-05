@@ -1,3 +1,3 @@
 # Client
 
-::: linear_python.client.LinearClient
+::: linear_python_client.client.LinearClient

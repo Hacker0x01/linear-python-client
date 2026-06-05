@@ -1,15 +1,19 @@
 """Data models: entities, request inputs, and response outputs.
 
 Re-exports everything so you can import from the package directly, e.g.
-``from linear_python.models import Issue, IssueCreateRequest, IssuesResponse``.
+``from linear_python_client.models import Issue, IssueCreateRequest, IssuesResponse``.
 """
 
 from __future__ import annotations
 
 from .entities import (
+    Attachment,
     Comment,
+    Cycle,
     Issue,
+    IssueDetail,
     IssueLabel,
+    IssueRelation,
     LinearModel,
     PageInfo,
     Project,
@@ -21,10 +25,14 @@ from .requests import (
     CommentCreateRequest,
     CommentRequest,
     CommentsRequest,
+    FindWorkflowStateRequest,
+    IssueAddLabelRequest,
     IssueArchiveRequest,
     IssueCreateRequest,
     IssueLabelsRequest,
+    IssueRemoveLabelRequest,
     IssueRequest,
+    IssueSetStateRequest,
     IssuesRequest,
     IssueUpdateRequest,
     PaginatedRequest,
@@ -37,32 +45,40 @@ from .requests import (
     WorkflowStatesRequest,
 )
 from .responses import (
+    AddLabelResponse,
     ArchiveIssueResponse,
     CommentResponse,
     CommentsResponse,
     ConnectionResponse,
     CreateCommentResponse,
     CreateIssueResponse,
+    IssueDetailsResponse,
     IssueLabelsResponse,
     IssueResponse,
     IssuesResponse,
     ProjectResponse,
     ProjectsResponse,
+    RemoveLabelResponse,
     TeamResponse,
     TeamsResponse,
     UpdateIssueResponse,
     UserResponse,
     UsersResponse,
     ViewerResponse,
+    WorkflowStateResponse,
     WorkflowStatesResponse,
 )
 
 __all__ = [
     # entities
     "LinearModel",
+    "Attachment",
     "Comment",
+    "Cycle",
     "Issue",
+    "IssueDetail",
     "IssueLabel",
+    "IssueRelation",
     "PageInfo",
     "Project",
     "Team",
@@ -79,6 +95,10 @@ __all__ = [
     "IssueCreateRequest",
     "IssueUpdateRequest",
     "IssueArchiveRequest",
+    "IssueAddLabelRequest",
+    "IssueRemoveLabelRequest",
+    "IssueSetStateRequest",
+    "FindWorkflowStateRequest",
     "ProjectRequest",
     "ProjectsRequest",
     "CommentRequest",
@@ -94,15 +114,19 @@ __all__ = [
     "TeamResponse",
     "TeamsResponse",
     "IssueResponse",
+    "IssueDetailsResponse",
     "IssuesResponse",
     "CreateIssueResponse",
     "UpdateIssueResponse",
     "ArchiveIssueResponse",
+    "AddLabelResponse",
+    "RemoveLabelResponse",
     "ProjectResponse",
     "ProjectsResponse",
     "CommentResponse",
     "CommentsResponse",
     "CreateCommentResponse",
+    "WorkflowStateResponse",
     "WorkflowStatesResponse",
     "IssueLabelsResponse",
 ]

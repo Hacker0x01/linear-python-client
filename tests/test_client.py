@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from linear_python import (
+from linear_python_client import (
     CreateIssueResponse,
     IssueArchiveRequest,
     IssueCreateRequest,
@@ -20,7 +20,7 @@ from linear_python import (
     LinearRateLimitError,
     ViewerResponse,
 )
-from linear_python.client import DEFAULT_ENDPOINT
+from linear_python_client.client import DEFAULT_ENDPOINT
 
 
 def gql_response(data: dict) -> httpx.Response:

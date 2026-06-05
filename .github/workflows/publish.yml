@@ -1,7 +1,7 @@
-name: Build & Release
+name: Publish
 
 on:
-  # Build + verify on every push/PR; attach artifacts to the GitHub Release when one is published.
+  # Build + verify on every push/PR; publish to PyPI when a GitHub Release is published.
   push:
     branches: [main]
   pull_request:
@@ -46,7 +46,7 @@ jobs:
         run: |
           uv venv /tmp/install-check
           uv pip install --python /tmp/install-check dist/*.whl
-          /tmp/install-check/bin/python -c "import linear_python; print('installed', linear_python.__version__)"
+          /tmp/install-check/bin/python -c "import linear_python_client; print('installed', linear_python_client.__version__)"
 
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
@@ -54,23 +54,25 @@ jobs:
           name: dist
           path: dist/
 
-  release-assets:
+  publish:
     needs: [test, build]
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/linear-python-client
     permissions:
-      # Required to attach assets to the GitHub Release.
-      contents: write
+      # Required for PyPI Trusted Publishing (OIDC); no API token needed.
+      id-token: write
     steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Download distribution artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      - name: Attach sdist + wheel to the GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release upload "${{ github.event.release.tag_name }}" dist/*
-          --repo "${{ github.repository }}" --clobber
+      - name: Publish to PyPI
+        run: uv publish --trusted-publishing always

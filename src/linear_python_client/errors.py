@@ -6,7 +6,7 @@ from typing import Any
 
 
 class LinearError(Exception):
-    """Base class for all errors raised by ``linear_python``."""
+    """Base class for all errors raised by ``linear_python_client``."""
 
 
 class LinearAuthenticationError(LinearError):

@@ -8,7 +8,7 @@ import httpx
 import pytest
 import respx
 
-from linear_python import (
+from linear_python_client import (
     CommentCreateRequest,
     CommentRequest,
     CommentsRequest,
@@ -22,7 +22,7 @@ from linear_python import (
     UsersRequest,
     WorkflowStatesRequest,
 )
-from linear_python.client import DEFAULT_ENDPOINT
+from linear_python_client.client import DEFAULT_ENDPOINT
 
 
 def gql_response(data: dict) -> httpx.Response:

@@ -1,9 +1,9 @@
 # Requests
 
-The typed input models. Each [`LinearClient`][linear_python.client.LinearClient]
+The typed input models. Each [`LinearClient`][linear_python_client.client.LinearClient]
 method takes exactly one of these.
 
-::: linear_python.models.requests
+::: linear_python_client.models.requests
     options:
       show_root_heading: false
       show_root_toc_entry: false
@@ -24,4 +24,8 @@ method takes exactly one of these.
         - IssueCreateRequest
         - IssueUpdateRequest
         - IssueArchiveRequest
+        - IssueAddLabelRequest
+        - IssueRemoveLabelRequest
+        - IssueSetStateRequest
+        - FindWorkflowStateRequest
         - CommentCreateRequest

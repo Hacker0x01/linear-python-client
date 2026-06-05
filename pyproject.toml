@@ -1,5 +1,5 @@
 [project]
-name = "linear-python"
+name = "linear-python-client"
 version = "0.1.0"
 description = "Pragmatic Python client for the Linear GraphQL API"
 readme = "README.md"
@@ -21,6 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.27",
+    "jupyter>=1.1.1",
     "pydantic>=2.7",
 ]
 
@@ -49,11 +50,11 @@ docs = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=linear_python --cov-report=term-missing --cov-fail-under=90"
+addopts = "--cov=linear_python_client --cov-report=term-missing --cov-fail-under=90"
 
 [tool.coverage.run]
 branch = true
-source = ["linear_python"]
+source = ["linear_python_client"]
 
 [tool.coverage.report]
 show_missing = true

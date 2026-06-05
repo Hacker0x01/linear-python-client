@@ -10,7 +10,7 @@ import os
 
 import pytest
 
-from linear_python import LinearClient
+from linear_python_client import LinearClient
 
 pytestmark = pytest.mark.skipif(
     not os.environ.get("LINEAR_API_KEY"),

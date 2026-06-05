@@ -1,4 +1,4 @@
-site_name: linear-python
+site_name: linear-python-client
 site_description: Pragmatic Python client for the Linear GraphQL API
 # Update these if the repository lives under a different owner/name.
 site_url: https://hacker0x01.github.io/linear-python/

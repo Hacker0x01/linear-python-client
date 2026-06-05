@@ -1,7 +1,7 @@
 """A pragmatic synchronous client for the Linear GraphQL API.
 
-Every method takes a single typed request model from `linear_python.models.requests`
-and returns a dedicated response model from `linear_python.models.responses`, so the
+Every method takes a single typed request model from `linear_python_client.models.requests`
+and returns a dedicated response model from `linear_python_client.models.responses`, so the
 input and output of each call are explicit at the type level.
 """
 
@@ -24,10 +24,14 @@ from .models.requests import (
     CommentCreateRequest,
     CommentRequest,
     CommentsRequest,
+    FindWorkflowStateRequest,
+    IssueAddLabelRequest,
     IssueArchiveRequest,
     IssueCreateRequest,
     IssueLabelsRequest,
+    IssueRemoveLabelRequest,
     IssueRequest,
+    IssueSetStateRequest,
     IssuesRequest,
     IssueUpdateRequest,
     PaginatedRequest,
@@ -40,23 +44,27 @@ from .models.requests import (
     WorkflowStatesRequest,
 )
 from .models.responses import (
+    AddLabelResponse,
     ArchiveIssueResponse,
     CommentResponse,
     CommentsResponse,
     ConnectionResponse,
     CreateCommentResponse,
     CreateIssueResponse,
+    IssueDetailsResponse,
     IssueLabelsResponse,
     IssueResponse,
     IssuesResponse,
     ProjectResponse,
     ProjectsResponse,
+    RemoveLabelResponse,
     TeamResponse,
     TeamsResponse,
     UpdateIssueResponse,
     UserResponse,
     UsersResponse,
     ViewerResponse,
+    WorkflowStateResponse,
     WorkflowStatesResponse,
 )
 
@@ -236,7 +244,7 @@ class LinearClient:
         """Fetch the currently authenticated user.
 
         Returns:
-            A [`ViewerResponse`][linear_python.ViewerResponse].
+            A [`ViewerResponse`][linear_python_client.ViewerResponse].
         """
         return ViewerResponse.model_validate(self.execute(queries.VIEWER))
 
@@ -244,10 +252,10 @@ class LinearClient:
         """Fetch a single user by id.
 
         Args:
-            request: A [`UserRequest`][linear_python.UserRequest].
+            request: A [`UserRequest`][linear_python_client.UserRequest].
 
         Returns:
-            A [`UserResponse`][linear_python.UserResponse]; `.user` is
+            A [`UserResponse`][linear_python_client.UserResponse]; `.user` is
             `None` if not found.
         """
         return UserResponse.model_validate(self.execute(queries.USER, {"id": request.id}))
@@ -256,11 +264,11 @@ class LinearClient:
         """List users in the workspace.
 
         Args:
-            request: A [`UsersRequest`][linear_python.UsersRequest]. When
+            request: A [`UsersRequest`][linear_python_client.UsersRequest]. When
                 omitted, the first page is returned with no filter.
 
         Returns:
-            A [`UsersResponse`][linear_python.UsersResponse].
+            A [`UsersResponse`][linear_python_client.UsersResponse].
         """
         request = request or UsersRequest()
         data = self.execute(queries.USERS, request.to_variables())
@@ -272,10 +280,10 @@ class LinearClient:
         """Fetch a single team by id.
 
         Args:
-            request: A [`TeamRequest`][linear_python.TeamRequest].
+            request: A [`TeamRequest`][linear_python_client.TeamRequest].
 
         Returns:
-            A [`TeamResponse`][linear_python.TeamResponse]; `.team` is
+            A [`TeamResponse`][linear_python_client.TeamResponse]; `.team` is
             `None` if not found.
         """
         return TeamResponse.model_validate(self.execute(queries.TEAM, {"id": request.id}))
@@ -284,11 +292,11 @@ class LinearClient:
         """List teams in the workspace.
 
         Args:
-            request: A [`TeamsRequest`][linear_python.TeamsRequest]. When
+            request: A [`TeamsRequest`][linear_python_client.TeamsRequest]. When
                 omitted, the first page is returned with no filter.
 
         Returns:
-            A [`TeamsResponse`][linear_python.TeamsResponse].
+            A [`TeamsResponse`][linear_python_client.TeamsResponse].
         """
         request = request or TeamsRequest()
         data = self.execute(queries.TEAMS, request.to_variables())
@@ -300,23 +308,41 @@ class LinearClient:
         """Fetch a single issue by id or human identifier.
 
         Args:
-            request: An [`IssueRequest`][linear_python.IssueRequest].
+            request: An [`IssueRequest`][linear_python_client.IssueRequest].
 
         Returns:
-            An [`IssueResponse`][linear_python.IssueResponse]; `.issue`
+            An [`IssueResponse`][linear_python_client.IssueResponse]; `.issue`
             is `None` if not found.
         """
         return IssueResponse.model_validate(self.execute(queries.ISSUE, {"id": request.id}))
+
+    def issue_details(self, request: IssueRequest) -> IssueDetailsResponse:
+        """Fetch a single issue with its full related data.
+
+        Returns the same core fields as [`issue`][linear_python_client.client.LinearClient.issue]
+        plus comments, attachments, project, cycle, parent, sub-issues,
+        subscribers, and relations.
+
+        Args:
+            request: An [`IssueRequest`][linear_python_client.IssueRequest].
+
+        Returns:
+            An [`IssueDetailsResponse`][linear_python_client.IssueDetailsResponse];
+            `.issue` is an [`IssueDetail`][linear_python_client.IssueDetail], or
+            `None` if not found.
+        """
+        data = self.execute(queries.ISSUE_DETAILS, {"id": request.id})
+        return IssueDetailsResponse.model_validate(data)
 
     def issues(self, request: IssuesRequest | None = None) -> IssuesResponse:
         """List issues, optionally filtered and ordered.
 
         Args:
-            request: An [`IssuesRequest`][linear_python.IssuesRequest].
+            request: An [`IssuesRequest`][linear_python_client.IssuesRequest].
                 When omitted, the first page is returned with no filter.
 
         Returns:
-            An [`IssuesResponse`][linear_python.IssuesResponse].
+            An [`IssuesResponse`][linear_python_client.IssuesResponse].
         """
         request = request or IssuesRequest()
         data = self.execute(queries.ISSUES, request.to_variables())
@@ -326,10 +352,10 @@ class LinearClient:
         """Create an issue.
 
         Args:
-            request: An [`IssueCreateRequest`][linear_python.IssueCreateRequest].
+            request: An [`IssueCreateRequest`][linear_python_client.IssueCreateRequest].
 
         Returns:
-            A [`CreateIssueResponse`][linear_python.CreateIssueResponse]
+            A [`CreateIssueResponse`][linear_python_client.CreateIssueResponse]
             exposing `success` and the created `issue`.
         """
         data = self.execute(queries.ISSUE_CREATE, {"input": request.to_input()})
@@ -339,11 +365,11 @@ class LinearClient:
         """Update an issue.
 
         Args:
-            request: An [`IssueUpdateRequest`][linear_python.IssueUpdateRequest]
+            request: An [`IssueUpdateRequest`][linear_python_client.IssueUpdateRequest]
                 with `id` and at least one field to change.
 
         Returns:
-            An [`UpdateIssueResponse`][linear_python.UpdateIssueResponse]
+            An [`UpdateIssueResponse`][linear_python_client.UpdateIssueResponse]
             exposing `success` and the updated `issue`.
 
         Raises:
@@ -359,14 +385,63 @@ class LinearClient:
         """Archive an issue.
 
         Args:
-            request: An [`IssueArchiveRequest`][linear_python.IssueArchiveRequest].
+            request: An [`IssueArchiveRequest`][linear_python_client.IssueArchiveRequest].
 
         Returns:
-            An [`ArchiveIssueResponse`][linear_python.ArchiveIssueResponse]
+            An [`ArchiveIssueResponse`][linear_python_client.ArchiveIssueResponse]
             exposing `success`.
         """
         data = self.execute(queries.ISSUE_ARCHIVE, {"id": request.id})
         return ArchiveIssueResponse.model_validate(data.get("issueArchive") or {})
+
+    def add_label(self, request: IssueAddLabelRequest) -> AddLabelResponse:
+        """Add a single label to an issue without disturbing its other labels.
+
+        Args:
+            request: An [`IssueAddLabelRequest`][linear_python_client.IssueAddLabelRequest].
+
+        Returns:
+            An [`AddLabelResponse`][linear_python_client.AddLabelResponse] exposing
+            `success` and the updated `issue`.
+        """
+        data = self.execute(
+            queries.ISSUE_ADD_LABEL, {"id": request.id, "labelId": request.label_id}
+        )
+        return AddLabelResponse.model_validate(data.get("issueAddLabel") or {})
+
+    def remove_label(self, request: IssueRemoveLabelRequest) -> RemoveLabelResponse:
+        """Remove a single label from an issue without disturbing its other labels.
+
+        Args:
+            request: An [`IssueRemoveLabelRequest`][linear_python_client.IssueRemoveLabelRequest].
+
+        Returns:
+            A [`RemoveLabelResponse`][linear_python_client.RemoveLabelResponse]
+            exposing `success` and the updated `issue`.
+        """
+        data = self.execute(
+            queries.ISSUE_REMOVE_LABEL, {"id": request.id, "labelId": request.label_id}
+        )
+        return RemoveLabelResponse.model_validate(data.get("issueRemoveLabel") or {})
+
+    def set_issue_state(self, request: IssueSetStateRequest) -> UpdateIssueResponse:
+        """Move an issue to a workflow state (status).
+
+        A focused wrapper over `update_issue` that sets only the state. Resolve a
+        state UUID by name with
+        [`find_workflow_state`][linear_python_client.client.LinearClient.find_workflow_state].
+
+        Args:
+            request: An [`IssueSetStateRequest`][linear_python_client.IssueSetStateRequest].
+
+        Returns:
+            An [`UpdateIssueResponse`][linear_python_client.UpdateIssueResponse]
+            exposing `success` and the updated `issue`.
+        """
+        data = self.execute(
+            queries.ISSUE_UPDATE, {"id": request.id, "input": {"stateId": request.state_id}}
+        )
+        return UpdateIssueResponse.model_validate(data.get("issueUpdate") or {})
 
     # -- projects -----------------------------------------------------------
 
@@ -374,10 +449,10 @@ class LinearClient:
         """Fetch a single project by id.
 
         Args:
-            request: A [`ProjectRequest`][linear_python.ProjectRequest].
+            request: A [`ProjectRequest`][linear_python_client.ProjectRequest].
 
         Returns:
-            A [`ProjectResponse`][linear_python.ProjectResponse];
+            A [`ProjectResponse`][linear_python_client.ProjectResponse];
             `.project` is `None` if not found.
         """
         return ProjectResponse.model_validate(self.execute(queries.PROJECT, {"id": request.id}))
@@ -386,11 +461,11 @@ class LinearClient:
         """List projects in the workspace.
 
         Args:
-            request: A [`ProjectsRequest`][linear_python.ProjectsRequest].
+            request: A [`ProjectsRequest`][linear_python_client.ProjectsRequest].
                 When omitted, the first page is returned with no filter.
 
         Returns:
-            A [`ProjectsResponse`][linear_python.ProjectsResponse].
+            A [`ProjectsResponse`][linear_python_client.ProjectsResponse].
         """
         request = request or ProjectsRequest()
         data = self.execute(queries.PROJECTS, request.to_variables())
@@ -402,10 +477,10 @@ class LinearClient:
         """Fetch a single comment by id.
 
         Args:
-            request: A [`CommentRequest`][linear_python.CommentRequest].
+            request: A [`CommentRequest`][linear_python_client.CommentRequest].
 
         Returns:
-            A [`CommentResponse`][linear_python.CommentResponse];
+            A [`CommentResponse`][linear_python_client.CommentResponse];
             `.comment` is `None` if not found.
         """
         return CommentResponse.model_validate(self.execute(queries.COMMENT, {"id": request.id}))
@@ -414,12 +489,12 @@ class LinearClient:
         """List comments, optionally scoped to a single issue.
 
         Args:
-            request: A [`CommentsRequest`][linear_python.CommentsRequest].
+            request: A [`CommentsRequest`][linear_python_client.CommentsRequest].
                 Set `issue_id` to scope to one issue. When omitted, the first page
                 is returned with no filter.
 
         Returns:
-            A [`CommentsResponse`][linear_python.CommentsResponse].
+            A [`CommentsResponse`][linear_python_client.CommentsResponse].
         """
         request = request or CommentsRequest()
         variables = request.to_variables()
@@ -434,10 +509,10 @@ class LinearClient:
         """Add a comment to an issue.
 
         Args:
-            request: A [`CommentCreateRequest`][linear_python.CommentCreateRequest].
+            request: A [`CommentCreateRequest`][linear_python_client.CommentCreateRequest].
 
         Returns:
-            A [`CreateCommentResponse`][linear_python.CreateCommentResponse]
+            A [`CreateCommentResponse`][linear_python_client.CreateCommentResponse]
             exposing `success` and the created `comment`.
         """
         data = self.execute(queries.COMMENT_CREATE, {"input": request.to_input()})
@@ -451,12 +526,12 @@ class LinearClient:
         """List workflow states, optionally scoped to a single team.
 
         Args:
-            request: A [`WorkflowStatesRequest`][linear_python.WorkflowStatesRequest].
+            request: A [`WorkflowStatesRequest`][linear_python_client.WorkflowStatesRequest].
                 Set `team_id` to scope to one team. When omitted, the first page is
                 returned with no filter.
 
         Returns:
-            A [`WorkflowStatesResponse`][linear_python.WorkflowStatesResponse].
+            A [`WorkflowStatesResponse`][linear_python_client.WorkflowStatesResponse].
         """
         request = request or WorkflowStatesRequest()
         variables = request.to_variables()
@@ -467,15 +542,41 @@ class LinearClient:
         data = self.execute(queries.WORKFLOW_STATES, variables)
         return WorkflowStatesResponse.model_validate(data.get("workflowStates") or {})
 
+    def find_workflow_state(self, request: FindWorkflowStateRequest) -> WorkflowStateResponse:
+        """Resolve a workflow state by name within a team.
+
+        Useful for turning a human status name (e.g. `"In Progress"`) into the
+        UUID that [`set_issue_state`][linear_python_client.client.LinearClient.set_issue_state]
+        expects. Matching is case-insensitive.
+
+        Args:
+            request: A [`FindWorkflowStateRequest`][linear_python_client.FindWorkflowStateRequest].
+
+        Returns:
+            A [`WorkflowStateResponse`][linear_python_client.WorkflowStateResponse];
+            `.state` is `None` if no state matches.
+        """
+        variables = {
+            "first": 1,
+            "after": None,
+            "filter": {
+                "team": {"id": {"eq": request.team_id}},
+                "name": {"eqIgnoreCase": request.name},
+            },
+        }
+        data = self.execute(queries.WORKFLOW_STATES, variables)
+        nodes = (data.get("workflowStates") or {}).get("nodes") or []
+        return WorkflowStateResponse.model_validate({"state": nodes[0] if nodes else None})
+
     def issue_labels(self, request: IssueLabelsRequest | None = None) -> IssueLabelsResponse:
         """List issue labels in the workspace.
 
         Args:
-            request: An [`IssueLabelsRequest`][linear_python.IssueLabelsRequest].
+            request: An [`IssueLabelsRequest`][linear_python_client.IssueLabelsRequest].
                 When omitted, the first page is returned with no filter.
 
         Returns:
-            An [`IssueLabelsResponse`][linear_python.IssueLabelsResponse].
+            An [`IssueLabelsResponse`][linear_python_client.IssueLabelsResponse].
         """
         request = request or IssueLabelsRequest()
         data = self.execute(queries.ISSUE_LABELS, request.to_variables())
@@ -497,7 +598,7 @@ class LinearClient:
         managing pagination yourself:
 
         ```python
-        from linear_python import IssuesRequest
+        from linear_python_client import IssuesRequest
 
         for issue in client.paginate(client.issues, IssuesRequest(filter={...})):
             print(issue.identifier, issue.title)

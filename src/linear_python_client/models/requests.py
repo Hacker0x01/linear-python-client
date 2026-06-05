@@ -1,4 +1,4 @@
-"""Typed request models for each :class:`~linear_python.client.LinearClient` call.
+"""Typed request models for each :class:`~linear_python_client.client.LinearClient` call.
 
 Every client method takes exactly one of these. They carry snake_case fields with
 camelCase aliases, and expose helpers (`to_variables`, `to_input`) that serialise
@@ -188,6 +188,55 @@ class IssueArchiveRequest(LinearModel):
     """Archive an issue by UUID."""
 
     id: str
+
+
+class IssueAddLabelRequest(LinearModel):
+    """Add a single label to an issue, leaving its other labels untouched.
+
+    Attributes:
+        id: UUID of the issue.
+        label_id: UUID of the label to add.
+    """
+
+    id: str
+    label_id: str
+
+
+class IssueRemoveLabelRequest(LinearModel):
+    """Remove a single label from an issue, leaving its other labels untouched.
+
+    Attributes:
+        id: UUID of the issue.
+        label_id: UUID of the label to remove.
+    """
+
+    id: str
+    label_id: str
+
+
+class IssueSetStateRequest(LinearModel):
+    """Move an issue to a workflow state (status).
+
+    Attributes:
+        id: UUID of the issue.
+        state_id: UUID of the target workflow state. Resolve one by name with
+            [`find_workflow_state`][linear_python_client.client.LinearClient.find_workflow_state].
+    """
+
+    id: str
+    state_id: str
+
+
+class FindWorkflowStateRequest(LinearModel):
+    """Resolve a workflow state by name within a team.
+
+    Attributes:
+        team_id: UUID of the team that owns the state.
+        name: State name to match, case-insensitively (e.g. `"In Progress"`).
+    """
+
+    team_id: str
+    name: str
 
 
 class CommentCreateRequest(LinearModel):

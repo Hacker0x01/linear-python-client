@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from linear_python import (
+from linear_python_client import (
     CommentCreateRequest,
     Issue,
     IssuesResponse,

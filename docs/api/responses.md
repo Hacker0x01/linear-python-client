@@ -1,9 +1,9 @@
 # Responses
 
 The typed result models returned by each
-[`LinearClient`][linear_python.client.LinearClient] method.
+[`LinearClient`][linear_python_client.client.LinearClient] method.
 
-::: linear_python.models.responses
+::: linear_python_client.models.responses
     options:
       show_root_heading: false
       show_root_toc_entry: false
@@ -15,14 +15,18 @@ The typed result models returned by each
         - TeamResponse
         - TeamsResponse
         - IssueResponse
+        - IssueDetailsResponse
         - IssuesResponse
         - ProjectResponse
         - ProjectsResponse
         - CommentResponse
         - CommentsResponse
+        - WorkflowStateResponse
         - WorkflowStatesResponse
         - IssueLabelsResponse
         - CreateIssueResponse
         - UpdateIssueResponse
         - ArchiveIssueResponse
+        - AddLabelResponse
+        - RemoveLabelResponse
         - CreateCommentResponse
