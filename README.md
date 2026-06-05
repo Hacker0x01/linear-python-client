@@ -9,19 +9,19 @@ covers anything the typed methods don't.
 
 Built against the [Linear developer docs](https://linear.app/developers).
 
-📖 **Full documentation:** <https://ewinter-hackerone.github.io/linear-python/>
+📖 **Full documentation:** <https://hacker0x01.github.io/linear-python/>
 
 ## Installation
 
-The package is distributed as assets on its [GitHub Releases](https://github.com/ewinter-hackerone/linear-python/releases)
+The package is distributed as assets on its [GitHub Releases](https://github.com/Hacker0x01/linear-python/releases)
 (not on PyPI). Install the wheel from a release, or straight from a tag:
 
 ```sh
 # from a release wheel
-uv pip install https://github.com/ewinter-hackerone/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
+uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
 
 # or from a tag (builds from source)
-uv pip install "git+https://github.com/ewinter-hackerone/linear-python@v0.1.0"
+uv pip install "git+https://github.com/Hacker0x01/linear-python@v0.1.0"
 ```
 
 Or for local development of this repo:
@@ -245,11 +245,11 @@ Install from a release asset (the package is not published to PyPI):
 
 ```sh
 # wheel
-uv pip install https://github.com/ewinter-hackerone/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
-pip install https://github.com/ewinter-hackerone/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
+uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
+pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
 
 # or straight from a tag (builds from source)
-uv pip install "git+https://github.com/ewinter-hackerone/linear-python@v0.1.0"
+uv pip install "git+https://github.com/Hacker0x01/linear-python@v0.1.0"
 ```
 
 > [!NOTE]

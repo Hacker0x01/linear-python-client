@@ -3,15 +3,15 @@
 ## Install
 
 The package is distributed as assets on its
-[GitHub Releases](https://github.com/ewinter-hackerone/linear-python/releases) (not on
+[GitHub Releases](https://github.com/Hacker0x01/linear-python/releases) (not on
 PyPI):
 
 ```sh
 # from a release wheel
-uv pip install https://github.com/ewinter-hackerone/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
+uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
 
 # or from a tag (builds from source)
-uv pip install "git+https://github.com/ewinter-hackerone/linear-python@v0.1.0"
+uv pip install "git+https://github.com/Hacker0x01/linear-python@v0.1.0"
 ```
 
 Or, working inside a clone of the repository:

@@ -25,10 +25,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ewinter-hackerone/linear-python"
-Documentation = "https://ewinter-hackerone.github.io/linear-python/"
-Repository = "https://github.com/ewinter-hackerone/linear-python"
-Issues = "https://github.com/ewinter-hackerone/linear-python/issues"
+Homepage = "https://github.com/Hacker0x01/linear-python"
+Documentation = "https://hacker0x01.github.io/linear-python/"
+Repository = "https://github.com/Hacker0x01/linear-python"
+Issues = "https://github.com/Hacker0x01/linear-python/issues"
 
 [build-system]
 requires = ["uv_build>=0.11.19,<0.12.0"]

@@ -25,11 +25,11 @@ Built against the [Linear developer docs](https://linear.app/developers).
 
 ## Install
 
-Distributed as assets on [GitHub Releases](https://github.com/ewinter-hackerone/linear-python/releases)
+Distributed as assets on [GitHub Releases](https://github.com/Hacker0x01/linear-python/releases)
 (not on PyPI):
 
 ```sh
-uv pip install https://github.com/ewinter-hackerone/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
+uv pip install https://github.com/Hacker0x01/linear-python/releases/download/v0.1.0/linear_python-0.1.0-py3-none-any.whl
 ```
 
 Requires Python 3.14+. See [Getting started](getting-started.md) for more install

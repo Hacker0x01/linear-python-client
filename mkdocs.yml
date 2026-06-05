@@ -1,9 +1,9 @@
 site_name: linear-python
 site_description: Pragmatic Python client for the Linear GraphQL API
 # Update these if the repository lives under a different owner/name.
-site_url: https://ewinter-hackerone.github.io/linear-python/
-repo_url: https://github.com/ewinter-hackerone/linear-python
-repo_name: ewinter-hackerone/linear-python
+site_url: https://hacker0x01.github.io/linear-python/
+repo_url: https://github.com/Hacker0x01/linear-python
+repo_name: Hacker0x01/linear-python
 edit_uri: edit/main/docs/
 
 theme:
@@ -85,4 +85,4 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/ewinter-hackerone/linear-python
+      link: https://github.com/Hacker0x01/linear-python
