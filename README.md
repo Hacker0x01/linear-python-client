@@ -9,7 +9,7 @@ covers anything the typed methods don't.
 
 Built against the [Linear developer docs](https://linear.app/developers).
 
-📖 **Full documentation:** <https://hacker0x01.github.io/linear-python/>
+📖 **Full documentation:** <https://hacker0x01.github.io/linear-python-client/>
 
 ## Installation
 

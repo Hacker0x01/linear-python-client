@@ -1,9 +1,9 @@
 site_name: linear-python-client
 site_description: Pragmatic Python client for the Linear GraphQL API
 # Update these if the repository lives under a different owner/name.
-site_url: https://hacker0x01.github.io/linear-python/
-repo_url: https://github.com/Hacker0x01/linear-python
-repo_name: Hacker0x01/linear-python
+site_url: https://hacker0x01.github.io/linear-python-client/
+repo_url: https://github.com/Hacker0x01/linear-python-client
+repo_name: Hacker0x01/linear-python-client
 edit_uri: edit/main/docs/
 
 theme:
@@ -85,4 +85,4 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/Hacker0x01/linear-python
+      link: https://github.com/Hacker0x01/linear-python-client
