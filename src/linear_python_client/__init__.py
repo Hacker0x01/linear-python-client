@@ -29,6 +29,10 @@ from .models.requests import (
     CommentCreateRequest,
     CommentRequest,
     CommentsRequest,
+    FindLabelRequest,
+    FindProjectRequest,
+    FindTeamRequest,
+    FindUserRequest,
     FindWorkflowStateRequest,
     IssueAddLabelRequest,
     IssueArchiveRequest,
@@ -57,6 +61,7 @@ from .models.responses import (
     CreateCommentResponse,
     CreateIssueResponse,
     IssueDetailsResponse,
+    IssueLabelResponse,
     IssueLabelsResponse,
     IssueResponse,
     IssuesResponse,
@@ -73,7 +78,7 @@ from .models.responses import (
     WorkflowStatesResponse,
 )
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 __all__ = [
     "DEFAULT_ENDPOINT",
@@ -113,6 +118,10 @@ __all__ = [
     "IssueRemoveLabelRequest",
     "IssueSetStateRequest",
     "FindWorkflowStateRequest",
+    "FindTeamRequest",
+    "FindUserRequest",
+    "FindLabelRequest",
+    "FindProjectRequest",
     "ProjectRequest",
     "ProjectsRequest",
     "CommentRequest",
@@ -142,6 +151,7 @@ __all__ = [
     "CreateCommentResponse",
     "WorkflowStateResponse",
     "WorkflowStatesResponse",
+    "IssueLabelResponse",
     "IssueLabelsResponse",
     "__version__",
 ]

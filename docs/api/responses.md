@@ -23,6 +23,7 @@ The typed result models returned by each
         - CommentsResponse
         - WorkflowStateResponse
         - WorkflowStatesResponse
+        - IssueLabelResponse
         - IssueLabelsResponse
         - CreateIssueResponse
         - UpdateIssueResponse

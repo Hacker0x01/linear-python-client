@@ -29,6 +29,10 @@ from linear_python_client import (
     CommentCreateRequest,
     CommentRequest,
     CommentsRequest,
+    FindLabelRequest,
+    FindProjectRequest,
+    FindTeamRequest,
+    FindUserRequest,
     FindWorkflowStateRequest,
     IssueAddLabelRequest,
     IssueArchiveRequest,
@@ -162,6 +166,30 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             r.check("paginate(issues)", False, f"raised {type(exc).__name__}: {exc}")
 
+        # -- name/key resolvers ---------------------------------------------
+        section("Resolvers (name/key -> entity)")
+        resolved_team = r.run(
+            "find_team(by key)",
+            lambda: client.find_team(FindTeamRequest(key=team.key)).team,
+        )
+        r.check(
+            "find_team resolves to same id",
+            bool(resolved_team and resolved_team.id == team_id),
+        )
+        if viewer and viewer.name:
+            found_user = r.run(
+                "find_user(by name)",
+                lambda: client.find_user(FindUserRequest(name=viewer.name)).user,
+            )
+            r.check("find_user resolves to a user", bool(found_user and found_user.id))
+        if projects:
+            r.run(
+                "find_project(by name)",
+                lambda: client.find_project(FindProjectRequest(name=projects[0].name)).project,
+            )
+        else:
+            r.skip("find_project()", "no projects in workspace")
+
         # -- create + verify ------------------------------------------------
         section("Create issue (+ pull to verify)")
         title = f"{MARKER} {int(time.time())}"
@@ -244,6 +272,13 @@ def main() -> int:
             )
             if team_labels:
                 label = team_labels[0]
+                resolved_label = r.run(
+                    "find_label(by name)",
+                    lambda: client.find_label(
+                        FindLabelRequest(name=label.name, team_id=team_id)
+                    ).label,
+                )
+                r.check("find_label resolves a label", bool(resolved_label and resolved_label.id))
                 r.run(
                     "add_label()",
                     lambda: client.add_label(

@@ -214,6 +214,23 @@ states = client.workflow_states(WorkflowStatesRequest(team_id="..."))
 labels = client.issue_labels(IssueLabelsRequest(first=100))
 ```
 
+## Resolving names to UUIDs
+
+Most methods take UUIDs. The `find_*` resolvers turn a human name/key/email into the
+entity (read its `.id` to pass elsewhere). Each returns the matching entity or `None`;
+name matching is case-insensitive, team `key` is exact.
+
+```python
+from linear_python_client import (
+    FindTeamRequest, FindUserRequest, FindProjectRequest, FindLabelRequest,
+)
+
+team = client.find_team(FindTeamRequest(key="RAV")).team           # or name="Ravens"
+user = client.find_user(FindUserRequest(name="Elijah Winter")).user  # or email="..."
+project = client.find_project(FindProjectRequest(name="Roadmap")).project
+bug = client.find_label(FindLabelRequest(name="bug", team_id=team.id)).label
+```
+
 ## Raw GraphQL
 
 Anything not covered by a typed method can be run directly with

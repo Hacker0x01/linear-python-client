@@ -162,6 +162,33 @@ for child in detail.children:
     print("sub-issue:", child.identifier, child.title)
 ```
 
+## Looking things up by name (instead of UUIDs)
+
+Most calls take UUIDs. Use the `find_*` resolvers to turn a human name/key/email into
+the entity (and its `.id`) first:
+
+```python
+from linear_python_client import (
+    FindTeamRequest, FindUserRequest, FindProjectRequest, FindLabelRequest,
+    IssueCreateRequest,
+)
+
+team = client.find_team(FindTeamRequest(key="RAV")).team        # or name="Ravens"
+assignee = client.find_user(FindUserRequest(name="Elijah Winter")).user  # or email=...
+bug = client.find_label(FindLabelRequest(name="bug", team_id=team.id)).label
+
+client.create_issue(IssueCreateRequest(
+    team_id=team.id,
+    title="New issue",
+    assignee_id=assignee.id,
+    label_ids=[bug.id],
+))
+```
+
+Each resolver returns the matching entity, or `None` if nothing matches. Name matching
+is case-insensitive; team `key` is matched exactly. `find_workflow_state` (for statuses)
+works the same way.
+
 ## Escape hatch: raw GraphQL
 
 Anything not covered by a convenience method can be run directly. `execute()`
@@ -225,8 +252,12 @@ Each method maps a `*Request` to a `*Response`:
 | `comments(...)` | `CommentsRequest` | `CommentsResponse` |
 | `create_comment(...)` | `CommentCreateRequest` | `CreateCommentResponse` |
 | `workflow_states(...)` | `WorkflowStatesRequest` | `WorkflowStatesResponse` |
-| `find_workflow_state(...)` | `FindWorkflowStateRequest` | `WorkflowStateResponse` |
 | `issue_labels(...)` | `IssueLabelsRequest` | `IssueLabelsResponse` |
+| `find_team(...)` | `FindTeamRequest` | `TeamResponse` |
+| `find_user(...)` | `FindUserRequest` | `UserResponse` |
+| `find_project(...)` | `FindProjectRequest` | `ProjectResponse` |
+| `find_label(...)` | `FindLabelRequest` | `IssueLabelResponse` |
+| `find_workflow_state(...)` | `FindWorkflowStateRequest` | `WorkflowStateResponse` |
 | `execute(query, variables)` | – | `dict` |
 | `paginate(method, request)` | a `*Request` | iterator of nodes |
 

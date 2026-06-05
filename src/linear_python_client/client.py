@@ -24,6 +24,10 @@ from .models.requests import (
     CommentCreateRequest,
     CommentRequest,
     CommentsRequest,
+    FindLabelRequest,
+    FindProjectRequest,
+    FindTeamRequest,
+    FindUserRequest,
     FindWorkflowStateRequest,
     IssueAddLabelRequest,
     IssueArchiveRequest,
@@ -52,6 +56,7 @@ from .models.responses import (
     CreateCommentResponse,
     CreateIssueResponse,
     IssueDetailsResponse,
+    IssueLabelResponse,
     IssueLabelsResponse,
     IssueResponse,
     IssuesResponse,
@@ -81,6 +86,12 @@ def _to_int(value: str | None) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _first_node(data: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """Return the first node of a connection in ``data[key]``, or ``None``."""
+    nodes = (data.get(key) or {}).get("nodes") or []
+    return nodes[0] if nodes else None
 
 
 class LinearClient:
@@ -556,17 +567,66 @@ class LinearClient:
             A [`WorkflowStateResponse`][linear_python_client.WorkflowStateResponse];
             `.state` is `None` if no state matches.
         """
-        variables = {
-            "first": 1,
-            "after": None,
-            "filter": {
-                "team": {"id": {"eq": request.team_id}},
-                "name": {"eqIgnoreCase": request.name},
-            },
+        filter_ = {
+            "team": {"id": {"eq": request.team_id}},
+            "name": {"eqIgnoreCase": request.name},
         }
-        data = self.execute(queries.WORKFLOW_STATES, variables)
-        nodes = (data.get("workflowStates") or {}).get("nodes") or []
-        return WorkflowStateResponse.model_validate({"state": nodes[0] if nodes else None})
+        data = self.execute(queries.WORKFLOW_STATES, {"first": 1, "filter": filter_})
+        return WorkflowStateResponse.model_validate({"state": _first_node(data, "workflowStates")})
+
+    def find_team(self, request: FindTeamRequest) -> TeamResponse:
+        """Resolve a team by display name or key.
+
+        Args:
+            request: A [`FindTeamRequest`][linear_python_client.FindTeamRequest]
+                with `name` and/or `key`.
+
+        Returns:
+            A [`TeamResponse`][linear_python_client.TeamResponse]; `.team` is
+            `None` if no team matches.
+        """
+        data = self.execute(queries.TEAMS, {"first": 1, "filter": request.to_filter()})
+        return TeamResponse.model_validate({"team": _first_node(data, "teams")})
+
+    def find_user(self, request: FindUserRequest) -> UserResponse:
+        """Resolve a user by name, display name, or email.
+
+        Args:
+            request: A [`FindUserRequest`][linear_python_client.FindUserRequest]
+                with `name` and/or `email`.
+
+        Returns:
+            A [`UserResponse`][linear_python_client.UserResponse]; `.user` is
+            `None` if no user matches.
+        """
+        data = self.execute(queries.USERS, {"first": 1, "filter": request.to_filter()})
+        return UserResponse.model_validate({"user": _first_node(data, "users")})
+
+    def find_project(self, request: FindProjectRequest) -> ProjectResponse:
+        """Resolve a project by name (case-insensitive).
+
+        Args:
+            request: A [`FindProjectRequest`][linear_python_client.FindProjectRequest].
+
+        Returns:
+            A [`ProjectResponse`][linear_python_client.ProjectResponse]; `.project`
+            is `None` if no project matches.
+        """
+        data = self.execute(queries.PROJECTS, {"first": 1, "filter": request.to_filter()})
+        return ProjectResponse.model_validate({"project": _first_node(data, "projects")})
+
+    def find_label(self, request: FindLabelRequest) -> IssueLabelResponse:
+        """Resolve an issue label by name, optionally scoped to a team.
+
+        Args:
+            request: A [`FindLabelRequest`][linear_python_client.FindLabelRequest].
+
+        Returns:
+            An [`IssueLabelResponse`][linear_python_client.IssueLabelResponse];
+            `.label` is `None` if no label matches.
+        """
+        data = self.execute(queries.ISSUE_LABELS, {"first": 1, "filter": request.to_filter()})
+        return IssueLabelResponse.model_validate({"label": _first_node(data, "issueLabels")})
 
     def issue_labels(self, request: IssueLabelsRequest | None = None) -> IssueLabelsResponse:
         """List issue labels in the workspace.

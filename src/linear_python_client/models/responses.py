@@ -82,6 +82,12 @@ class WorkflowStateResponse(LinearModel):
     state: WorkflowState | None = None
 
 
+class IssueLabelResponse(LinearModel):
+    """Resolved issue label from `find_label` (`None` if no match)."""
+
+    label: IssueLabel | None = None
+
+
 class ProjectResponse(LinearModel):
     """Response for [`project`][linear_python_client.client.LinearClient.project]."""
 

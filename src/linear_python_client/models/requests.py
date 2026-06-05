@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from .entities import LinearModel
 
@@ -237,6 +237,106 @@ class FindWorkflowStateRequest(LinearModel):
 
     team_id: str
     name: str
+
+
+class FindTeamRequest(LinearModel):
+    """Resolve a team by its display name or key.
+
+    Provide at least one of `name` / `key`. Matching is case-insensitive for the
+    name and exact for the key.
+
+    Attributes:
+        name: Team display name (e.g. `"Ravens"`).
+        key: Team key (e.g. `"RAV"`).
+    """
+
+    name: str | None = None
+    key: str | None = None
+
+    @model_validator(mode="after")
+    def _require_one(self) -> FindTeamRequest:
+        if not (self.name or self.key):
+            raise ValueError("FindTeamRequest requires at least one of `name` or `key`.")
+        return self
+
+    def to_filter(self) -> dict[str, Any]:
+        """Build the `TeamFilter` for this lookup."""
+        filter_: dict[str, Any] = {}
+        if self.key:
+            filter_["key"] = {"eq": self.key}
+        if self.name:
+            filter_["name"] = {"eqIgnoreCase": self.name}
+        return filter_
+
+
+class FindUserRequest(LinearModel):
+    """Resolve a user by name, display name, or email.
+
+    Provide at least one of `name` / `email`. The `name` value is matched
+    (case-insensitively) against both the full name and the display name.
+
+    Attributes:
+        name: Full name or display name (e.g. `"Elijah Winter"`).
+        email: Email address.
+    """
+
+    name: str | None = None
+    email: str | None = None
+
+    @model_validator(mode="after")
+    def _require_one(self) -> FindUserRequest:
+        if not (self.name or self.email):
+            raise ValueError("FindUserRequest requires at least one of `name` or `email`.")
+        return self
+
+    def to_filter(self) -> dict[str, Any]:
+        """Build the `UserFilter` for this lookup."""
+        clauses: list[dict[str, Any]] = []
+        if self.name:
+            clauses.append(
+                {
+                    "or": [
+                        {"name": {"eqIgnoreCase": self.name}},
+                        {"displayName": {"eqIgnoreCase": self.name}},
+                    ]
+                }
+            )
+        if self.email:
+            clauses.append({"email": {"eqIgnoreCase": self.email}})
+        return clauses[0] if len(clauses) == 1 else {"and": clauses}
+
+
+class FindLabelRequest(LinearModel):
+    """Resolve an issue label by name, optionally scoped to a team.
+
+    Attributes:
+        name: Label name to match, case-insensitively (e.g. `"bug"`).
+        team_id: Optional team UUID to disambiguate team-scoped labels.
+    """
+
+    name: str
+    team_id: str | None = None
+
+    def to_filter(self) -> dict[str, Any]:
+        """Build the `IssueLabelFilter` for this lookup."""
+        filter_: dict[str, Any] = {"name": {"eqIgnoreCase": self.name}}
+        if self.team_id:
+            filter_["team"] = {"id": {"eq": self.team_id}}
+        return filter_
+
+
+class FindProjectRequest(LinearModel):
+    """Resolve a project by name.
+
+    Attributes:
+        name: Project name to match, case-insensitively.
+    """
+
+    name: str
+
+    def to_filter(self) -> dict[str, Any]:
+        """Build the `ProjectFilter` for this lookup."""
+        return {"name": {"eqIgnoreCase": self.name}}
 
 
 class CommentCreateRequest(LinearModel):

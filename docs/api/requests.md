@@ -28,4 +28,8 @@ method takes exactly one of these.
         - IssueRemoveLabelRequest
         - IssueSetStateRequest
         - FindWorkflowStateRequest
+        - FindTeamRequest
+        - FindUserRequest
+        - FindProjectRequest
+        - FindLabelRequest
         - CommentCreateRequest
