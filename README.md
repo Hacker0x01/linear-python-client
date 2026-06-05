@@ -288,7 +288,7 @@ Publishing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishe
    (Settings → Environments).
 
 To cut a release: bump `version` in `pyproject.toml`, then create a matching GitHub
-Release (e.g. tag `v0.1.0`) — the workflow builds and uploads it to PyPI.
+Release (e.g. tag `v0.1.1`) — the workflow builds and uploads it to PyPI.
 
 > [!NOTE]
 > `requires-python` is `>=3.14`, so installs require Python 3.14+.
