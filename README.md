@@ -25,7 +25,7 @@ Or for local development of this repo:
 uv sync
 ```
 
-Requires Python 3.14+.
+Requires Python 3.13+.
 
 ## Authentication
 
@@ -322,7 +322,7 @@ To cut a release: bump `version` in `pyproject.toml`, then create a matching Git
 Release (e.g. tag `v0.1.1`) — the workflow builds and uploads it to PyPI.
 
 > [!NOTE]
-> `requires-python` is `>=3.14`, so installs require Python 3.14+.
+> `requires-python` is `>=3.13`, so installs require Python 3.13+.
 
 ### Documentation
 

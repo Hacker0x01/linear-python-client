@@ -31,7 +31,7 @@ uv add linear-python-client
 pip install linear-python-client
 ```
 
-Requires Python 3.14+. See [Getting started](getting-started.md) for more detail.
+Requires Python 3.13+. See [Getting started](getting-started.md) for more detail.
 
 ## A 30-second tour
 

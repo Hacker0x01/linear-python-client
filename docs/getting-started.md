@@ -14,7 +14,7 @@ Or, working inside a clone of the repository:
 uv sync
 ```
 
-The package requires **Python 3.14+** and depends on
+The package requires **Python 3.13+** and depends on
 [`httpx`](https://www.python-httpx.org/) and
 [`pydantic`](https://docs.pydantic.dev/).
 
