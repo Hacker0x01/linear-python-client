@@ -160,6 +160,30 @@ Any field accepted by Linear's `IssueCreateInput` / `IssueUpdateInput` can be pa
 as an extra keyword argument using its camelCase API name (e.g. `dueDate="2026-01-01"`),
 even if it isn't an explicit field on the request model.
 
+### Passing names instead of UUIDs
+
+`create_issue` automatically resolves non-UUID strings to UUIDs before sending the
+request, so you can pass human-readable names directly without a separate `find_*` call:
+
+```python
+created = client.create_issue(
+    IssueCreateRequest(
+        team_id="Engineering",         # team display name  (or "ENG" for the key)
+        title="New exception",
+        assignee_id="alice@example.com",  # email, or display name
+        label_ids=["bug", "urgent"],      # label names
+        project_id="Roadmap",             # project name
+        state_id="In Progress",           # workflow state name
+    )
+)
+```
+
+UUID values are passed through untouched, so you can freely mix UUIDs and names.
+
+`update_issue` resolves `assignee_id`, `project_id`, and `label_ids` the same way.
+`state_id` in an update requires a UUID (no team context is available to look up a
+state by name; use `find_workflow_state` first if you only have the name).
+
 ## Labels
 
 `update_issue(IssueUpdateRequest(id=..., label_ids=[...]))` replaces an issue's whole
@@ -216,8 +240,12 @@ labels = client.issue_labels(IssueLabelsRequest(first=100))
 
 ## Resolving names to UUIDs
 
-Most methods take UUIDs. The `find_*` resolvers turn a human name/key/email into the
-entity (read its `.id` to pass elsewhere). Each returns the matching entity or `None`;
+For `create_issue` and `update_issue`, the client resolves non-UUID strings
+automatically — see [Passing names instead of UUIDs](#passing-names-instead-of-uuids)
+above.
+
+For everything else, use the `find_*` resolvers to turn a human name/key/email into
+an entity (read `.id` to pass elsewhere). Each returns the matching entity or `None`;
 name matching is case-insensitive, team `key` is exact.
 
 ```python
@@ -225,7 +253,7 @@ from linear_python_client import (
     FindTeamRequest, FindUserRequest, FindProjectRequest, FindLabelRequest,
 )
 
-team = client.find_team(FindTeamRequest(key="RAV")).team           # or name="Ravens"
+team = client.find_team(FindTeamRequest(key="RAV")).team             # or name="Ravens"
 user = client.find_user(FindUserRequest(name="Elijah Winter")).user  # or email="..."
 project = client.find_project(FindProjectRequest(name="Roadmap")).project
 bug = client.find_label(FindLabelRequest(name="bug", team_id=team.id)).label
@@ -259,24 +287,51 @@ All exceptions subclass [`LinearError`][linear_python_client.LinearError]:
 
 | Exception | Raised when |
 |-----------|-------------|
-| [`LinearAuthenticationError`][linear_python_client.LinearAuthenticationError] | Credentials are rejected (HTTP 401/403 or an auth error code) |
-| [`LinearRateLimitError`][linear_python_client.LinearRateLimitError] | A rate limit is hit (`RATELIMITED`); carries the `X-RateLimit-*` header values |
+| [`LinearAuthenticationError`][linear_python_client.LinearAuthenticationError] | Credentials are rejected (HTTP 401/403, or `AUTHENTICATION_ERROR` / `UNAUTHENTICATED` / `FORBIDDEN` error code) |
+| [`LinearRateLimitError`][linear_python_client.LinearRateLimitError] | A rate limit is hit (`RATELIMITED`); carries all `X-RateLimit-*` header values including endpoint-level limits |
 | [`LinearGraphQLError`][linear_python_client.LinearGraphQLError] | The API returns GraphQL `errors`; exposes `.errors` and `.code` |
-| [`LinearNetworkError`][linear_python_client.LinearNetworkError] | The request never produced a usable response |
+| [`LinearNetworkError`][linear_python_client.LinearNetworkError] | The request never produced a usable response (connection error, non-JSON body) |
+| [`LinearServerError`][linear_python_client.LinearServerError] | Linear returned an HTTP 5xx response; exposes `.status_code` and `.body_preview` |
+
+Error messages include the error code, Linear's `userPresentableMessage` when
+available, and any field-level validation details from `extensions.errors`.
 
 ```python
-from linear_python_client import LinearClient, LinearRateLimitError, IssuesRequest
+from linear_python_client import (
+    LinearClient,
+    LinearRateLimitError,
+    LinearServerError,
+    IssuesRequest,
+)
 
 try:
     client.issues(IssuesRequest(first=100))
 except LinearRateLimitError as exc:
     print("Rate limited; resets at", exc.requests_reset)
+    # Endpoint-specific limit (e.g. issueCreate has a tighter cap):
+    if exc.endpoint_name:
+        print(f"  endpoint {exc.endpoint_name!r}: {exc.endpoint_requests_remaining} remaining")
+except LinearServerError as exc:
+    print(f"Linear server error HTTP {exc.status_code}: {exc.body_preview}")
 ```
 
 ## Rate limits
 
 Linear allows roughly **5,000 requests/hour** for API keys and OAuth apps, with a
-separate complexity budget. The client surfaces the relevant `X-RateLimit-*` header
-values on [`LinearRateLimitError`][linear_python_client.LinearRateLimitError] when a limit is
-hit. See the [rate limiting docs](https://linear.app/developers/rate-limiting) for the
-full details.
+separate complexity budget. Some endpoints have their own tighter per-endpoint caps.
+The client surfaces all `X-RateLimit-*` header values on
+[`LinearRateLimitError`][linear_python_client.LinearRateLimitError] when a limit is hit:
+
+| Attribute | Header |
+|-----------|--------|
+| `requests_limit` | `X-RateLimit-Requests-Limit` |
+| `requests_remaining` | `X-RateLimit-Requests-Remaining` |
+| `requests_reset` | `X-RateLimit-Requests-Reset` (ms epoch) |
+| `query_complexity` | `X-Complexity` |
+| `endpoint_requests_limit` | `X-RateLimit-Endpoint-Requests-Limit` |
+| `endpoint_requests_remaining` | `X-RateLimit-Endpoint-Requests-Remaining` |
+| `endpoint_requests_reset` | `X-RateLimit-Endpoint-Requests-Reset` (ms epoch) |
+| `endpoint_name` | `X-RateLimit-Endpoint-Name` |
+
+See the [rate limiting docs](https://linear.app/developers/rate-limiting) for the full
+details.

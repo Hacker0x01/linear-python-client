@@ -13,3 +13,4 @@ Every exception raised by the client subclasses
         - LinearRateLimitError
         - LinearGraphQLError
         - LinearNetworkError
+        - LinearServerError

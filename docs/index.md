@@ -18,9 +18,11 @@ Built against the [Linear developer docs](https://linear.app/developers).
 - **Pydantic models.** Snake_case attributes with camelCase aliases; validation and
   serialisation come for free.
 - **Both auth methods.** Personal API keys and OAuth 2.0 access tokens.
+- **Names instead of UUIDs.** Pass a team name, user email, or label name directly to
+  `create_issue` / `update_issue` — UUIDs are resolved automatically.
 - **Pagination made trivial.** `paginate()` follows the cursor for you.
-- **Real error handling.** Auth, rate-limit, and GraphQL errors map to typed
-  exceptions.
+- **Real error handling.** Auth, rate-limit, server (5xx), and GraphQL errors map to
+  typed exceptions with full context.
 - **No lock-in.** `execute()` runs any raw GraphQL query or mutation.
 
 ## Install
@@ -43,7 +45,7 @@ with LinearClient(api_key="lin_api_...") as client:
 
     created = client.create_issue(
         IssueCreateRequest(
-            team_id="9cfb482a-81e3-4154-b5b9-2c805e70a02d",
+            team_id="Engineering",  # name, key, or UUID — all accepted
             title="New exception",
             priority=2,
         )

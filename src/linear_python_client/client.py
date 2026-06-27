@@ -7,7 +7,9 @@ input and output of each call are explicit at the type level.
 
 from __future__ import annotations
 
+import logging
 import os
+import re
 from collections.abc import Callable, Iterator
 from typing import Any, TypeVar
 
@@ -18,6 +20,7 @@ from .errors import (
     LinearGraphQLError,
     LinearNetworkError,
     LinearRateLimitError,
+    LinearServerError,
 )
 from .graphql import queries
 from .models.requests import (
@@ -73,6 +76,8 @@ from .models.responses import (
     WorkflowStatesResponse,
 )
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_ENDPOINT = "https://api.linear.app/graphql"
 
 RequestT = TypeVar("RequestT", bound=PaginatedRequest)
@@ -92,6 +97,50 @@ def _first_node(data: dict[str, Any], key: str) -> dict[str, Any] | None:
     """Return the first node of a connection in ``data[key]``, or ``None``."""
     nodes = (data.get(key) or {}).get("nodes") or []
     return nodes[0] if nodes else None
+
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def _is_uuid(value: str) -> bool:
+    """Return ``True`` if *value* is a well-formed UUID string."""
+    return bool(_UUID_RE.match(value))
+
+
+def _build_error_message(errors: list[dict[str, Any]]) -> str:
+    """Build a human-readable message from a GraphQL ``errors`` list.
+
+    Surfaces per-error codes, Linear's ``userPresentableMessage``, and any
+    field-level validation details found in ``extensions.errors``.
+    """
+    if not errors:
+        return "GraphQL error"
+
+    parts: list[str] = []
+    for error in errors:
+        extensions = error.get("extensions") or {}
+        raw_msg = error.get("message") or "GraphQL error"
+        code = extensions.get("code") or error.get("code")
+        user_msg = extensions.get("userPresentableMessage")
+        field_errors: dict[str, Any] = extensions.get("errors") or {}
+
+        # Prefer the user-facing message when it adds information.
+        detail = user_msg if (user_msg and user_msg != raw_msg) else raw_msg
+        if code:
+            detail = f"[{code}] {detail}"
+        if field_errors:
+            field_parts = []
+            for field, msgs in field_errors.items():
+                field_msgs = ", ".join(msgs) if isinstance(msgs, list) else str(msgs)
+                field_parts.append(f"{field}: {field_msgs}")
+            detail = f"{detail} — invalid fields: {'; '.join(field_parts)}"
+
+        parts.append(detail)
+
+    return " | ".join(parts)
 
 
 class LinearClient:
@@ -199,6 +248,14 @@ class LinearClient:
         except httpx.HTTPError as exc:
             raise LinearNetworkError(f"Request to Linear failed: {exc}") from exc
 
+        # 5xx — server-side failure; surface before attempting JSON parse.
+        if response.status_code >= 500:
+            preview = response.text[:300].strip() if response.text else "(empty body)"
+            msg = f"Linear server error (HTTP {response.status_code}): {preview}"
+            logger.error(msg)
+            raise LinearServerError(msg, status_code=response.status_code, body_preview=preview)
+
+        # 401/403 at HTTP level — credentials rejected before reaching GraphQL.
         if response.status_code in (401, 403):
             raise LinearAuthenticationError(
                 f"Linear rejected the credentials (HTTP {response.status_code})."
@@ -207,12 +264,24 @@ class LinearClient:
         try:
             body = response.json()
         except ValueError as exc:
+            preview = response.text[:300].strip() if response.text else "(empty body)"
             raise LinearNetworkError(
-                f"Linear returned a non-JSON response (HTTP {response.status_code})."
+                f"Linear returned a non-JSON response (HTTP {response.status_code}): {preview}"
             ) from exc
 
         errors = body.get("errors")
+        data = body.get("data")
         if errors:
+            # Partial success: Linear returned 200 with both data and errors.
+            # Per the GraphQL spec some fields succeeded; log a warning so callers
+            # can inspect which fields failed without the exception swallowing data.
+            if data and response.status_code == 200:
+                logger.warning(
+                    "Linear partial success: response contains both data and errors. "
+                    "Raising on the errors; inspect the raw response for partial data. "
+                    "errors=%r",
+                    errors,
+                )
             self._raise_for_errors(errors, response)
 
         if response.status_code >= 400:
@@ -220,7 +289,7 @@ class LinearClient:
                 f"Linear returned HTTP {response.status_code} with no GraphQL errors."
             )
 
-        return body.get("data") or {}
+        return data or {}
 
     def _raise_for_errors(self, errors: list[dict[str, Any]], response: httpx.Response) -> None:
         """Map a GraphQL ``errors`` list onto the appropriate exception and raise it."""
@@ -231,23 +300,145 @@ class LinearClient:
             if code:
                 break
 
-        message = errors[0].get("message", "GraphQL error") if errors else "GraphQL error"
+        message = _build_error_message(errors)
+
+        logger.error(
+            "Linear API error: %s",
+            message,
+            extra={"linear_errors": errors, "http_status": response.status_code},
+        )
 
         if code == "RATELIMITED":
-            headers = response.headers
+            h = response.headers
             raise LinearRateLimitError(
                 message,
-                requests_limit=_to_int(headers.get("X-RateLimit-Requests-Limit")),
-                requests_remaining=_to_int(headers.get("X-RateLimit-Requests-Remaining")),
-                requests_reset=_to_int(headers.get("X-RateLimit-Requests-Reset")),
-                complexity_limit=_to_int(headers.get("X-RateLimit-Complexity-Limit")),
-                complexity_remaining=_to_int(headers.get("X-RateLimit-Complexity-Remaining")),
-                complexity_reset=_to_int(headers.get("X-RateLimit-Complexity-Reset")),
+                requests_limit=_to_int(h.get("X-RateLimit-Requests-Limit")),
+                requests_remaining=_to_int(h.get("X-RateLimit-Requests-Remaining")),
+                requests_reset=_to_int(h.get("X-RateLimit-Requests-Reset")),
+                complexity_limit=_to_int(h.get("X-RateLimit-Complexity-Limit")),
+                complexity_remaining=_to_int(h.get("X-RateLimit-Complexity-Remaining")),
+                complexity_reset=_to_int(h.get("X-RateLimit-Complexity-Reset")),
+                query_complexity=_to_int(h.get("X-Complexity")),
+                endpoint_requests_limit=_to_int(h.get("X-RateLimit-Endpoint-Requests-Limit")),
+                endpoint_requests_remaining=_to_int(h.get("X-RateLimit-Endpoint-Requests-Remaining")),
+                endpoint_requests_reset=_to_int(h.get("X-RateLimit-Endpoint-Requests-Reset")),
+                endpoint_name=h.get("X-RateLimit-Endpoint-Name"),
             )
-        if code in ("AUTHENTICATION_ERROR", "FORBIDDEN"):
+        if code in ("AUTHENTICATION_ERROR", "UNAUTHENTICATED", "FORBIDDEN"):
             raise LinearAuthenticationError(message)
 
         raise LinearGraphQLError(message, errors=errors)
+
+    # -- id resolution helpers -----------------------------------------------
+
+    def _lookup_team(self, name_or_key: str) -> str:
+        """Resolve a team display name or key to a UUID."""
+        resp = self.find_team(FindTeamRequest(name=name_or_key))
+        if resp.team is not None:
+            return resp.team.id
+        resp = self.find_team(FindTeamRequest(key=name_or_key))
+        if resp.team is not None:
+            return resp.team.id
+        raise ValueError(f"Team not found: {name_or_key!r}")
+
+    def _lookup_user(self, name_or_email: str) -> str:
+        """Resolve a user display name or email address to a UUID."""
+        req = (
+            FindUserRequest(email=name_or_email)
+            if "@" in name_or_email
+            else FindUserRequest(name=name_or_email)
+        )
+        user = self.find_user(req).user
+        if user is None:
+            raise ValueError(f"User not found: {name_or_email!r}")
+        return user.id
+
+    def _lookup_project(self, name: str) -> str:
+        """Resolve a project name to a UUID."""
+        project = self.find_project(FindProjectRequest(name=name)).project
+        if project is None:
+            raise ValueError(f"Project not found: {name!r}")
+        return project.id
+
+    def _lookup_label(self, name: str, *, team_id: str | None = None) -> str:
+        """Resolve a label name to a UUID, optionally scoped to a team."""
+        label = self.find_label(FindLabelRequest(name=name, team_id=team_id)).label
+        if label is None:
+            raise ValueError(f"Label not found: {name!r}")
+        return label.id
+
+    def _lookup_workflow_state(self, name: str, team_id: str) -> str:
+        """Resolve a workflow state name to a UUID within a team."""
+        state = self.find_workflow_state(
+            FindWorkflowStateRequest(team_id=team_id, name=name)
+        ).state
+        if state is None:
+            raise ValueError(f"Workflow state {name!r} not found in team {team_id!r}")
+        return state.id
+
+    def _resolve_create_ids(self, request: IssueCreateRequest) -> IssueCreateRequest:
+        """Resolve non-UUID strings in *request* to their Linear UUIDs.
+
+        Resolved fields: ``team_id``, ``assignee_id``, ``project_id``,
+        ``label_ids``, ``state_id``. UUID values are passed through unchanged.
+        """
+        updates: dict[str, Any] = {}
+
+        team_id = request.team_id
+        if not _is_uuid(team_id):
+            team_id = self._lookup_team(team_id)
+            updates["team_id"] = team_id
+
+        if request.assignee_id and not _is_uuid(request.assignee_id):
+            updates["assignee_id"] = self._lookup_user(request.assignee_id)
+
+        if request.project_id and not _is_uuid(request.project_id):
+            updates["project_id"] = self._lookup_project(request.project_id)
+
+        if request.label_ids:
+            resolved = [
+                label if _is_uuid(label) else self._lookup_label(label, team_id=team_id)
+                for label in request.label_ids
+            ]
+            if resolved != request.label_ids:
+                updates["label_ids"] = resolved
+
+        if request.state_id and not _is_uuid(request.state_id):
+            updates["state_id"] = self._lookup_workflow_state(request.state_id, team_id)
+
+        return request.model_copy(update=updates) if updates else request
+
+    def _resolve_update_ids(self, request: IssueUpdateRequest) -> IssueUpdateRequest:
+        """Resolve non-UUID strings in *request* to their Linear UUIDs.
+
+        Resolved fields: ``assignee_id``, ``project_id``, ``label_ids``.
+
+        Note: ``state_id`` is not resolved here — an update has no team context.
+        Use a UUID directly, or call :meth:`find_workflow_state` first.
+        """
+        updates: dict[str, Any] = {}
+
+        if request.state_id and not _is_uuid(request.state_id):
+            raise ValueError(
+                "state_id cannot be resolved by name in update_issue (no team context). "
+                "Use find_workflow_state() to get the UUID first, or provide a UUID directly."
+            )
+
+        if request.assignee_id and not _is_uuid(request.assignee_id):
+            updates["assignee_id"] = self._lookup_user(request.assignee_id)
+
+        if request.project_id and not _is_uuid(request.project_id):
+            updates["project_id"] = self._lookup_project(request.project_id)
+
+        if request.label_ids:
+            resolved = [
+                label if _is_uuid(label) else self._lookup_label(label)
+                for label in request.label_ids
+            ]
+            if resolved != request.label_ids:
+                updates["label_ids"] = resolved
+
+        return request.model_copy(update=updates) if updates else request
 
     # -- viewer / users -----------------------------------------------------
 
@@ -369,6 +560,7 @@ class LinearClient:
             A [`CreateIssueResponse`][linear_python_client.CreateIssueResponse]
             exposing `success` and the created `issue`.
         """
+        request = self._resolve_create_ids(request)
         data = self.execute(queries.ISSUE_CREATE, {"input": request.to_input()})
         return CreateIssueResponse.model_validate(data.get("issueCreate") or {})
 
@@ -386,6 +578,7 @@ class LinearClient:
         Raises:
             ValueError: If no fields besides `id` are set.
         """
+        request = self._resolve_update_ids(request)
         input_data = request.to_input()
         if not input_data:
             raise ValueError("IssueUpdateRequest requires at least one field to update.")

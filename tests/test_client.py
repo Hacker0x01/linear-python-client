@@ -18,6 +18,7 @@ from linear_python_client import (
     LinearClient,
     LinearGraphQLError,
     LinearRateLimitError,
+    LinearServerError,
     ViewerResponse,
 )
 from linear_python_client.client import DEFAULT_ENDPOINT
@@ -189,12 +190,13 @@ def test_create_issue(client: LinearClient) -> None:
             {"issueCreate": {"success": True, "issue": {"id": "i9", "title": "New exception"}}}
         )
     )
-    resp = client.create_issue(IssueCreateRequest(team_id="t1", title="New exception", priority=2))
+    _team = "43a11e2e-88af-4184-882b-45ec14d36ca9"
+    resp = client.create_issue(IssueCreateRequest(team_id=_team, title="New exception", priority=2))
     assert isinstance(resp, CreateIssueResponse)
     assert resp.success is True
     assert resp.issue.id == "i9"
     body = route.calls.last.request.content.decode()
-    assert '"teamId":"t1"' in body
+    assert f'"teamId":"{_team}"' in body
     assert '"priority":2' in body
 
 
@@ -258,13 +260,31 @@ def test_rate_limit_error(client: LinearClient) -> None:
                 "X-RateLimit-Requests-Limit": "5000",
                 "X-RateLimit-Requests-Remaining": "0",
                 "X-RateLimit-Requests-Reset": "1700000000000",
+                "X-Complexity": "150",
+                "X-RateLimit-Endpoint-Requests-Limit": "50",
+                "X-RateLimit-Endpoint-Requests-Remaining": "0",
+                "X-RateLimit-Endpoint-Name": "issues",
             },
         )
     )
     with pytest.raises(LinearRateLimitError) as exc_info:
         client.issues()
-    assert exc_info.value.requests_remaining == 0
-    assert exc_info.value.requests_reset == 1700000000000
+    err = exc_info.value
+    assert err.requests_limit == 5000
+    assert err.requests_remaining == 0
+    assert err.requests_reset == 1700000000000
+    assert err.query_complexity == 150
+    assert err.endpoint_requests_limit == 50
+    assert err.endpoint_requests_remaining == 0
+    assert err.endpoint_name == "issues"
+
+
+@respx.mock
+def test_server_error_raised_on_5xx(client: LinearClient) -> None:
+    respx.post(DEFAULT_ENDPOINT).mock(return_value=httpx.Response(503, text="overloaded"))
+    with pytest.raises(LinearServerError) as exc_info:
+        client.viewer()
+    assert exc_info.value.status_code == 503
 
 
 @respx.mock

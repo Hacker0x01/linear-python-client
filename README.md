@@ -74,10 +74,10 @@ with LinearClient() as client:
     issue = client.issue(IssueRequest(id="ENG-123")).issue
     print(issue.title, issue.state.name)
 
-    # Create an issue
+    # Create an issue — team name, key, or UUID all work
     created = client.create_issue(
         IssueCreateRequest(
-            team_id="9cfb482a-81e3-4154-b5b9-2c805e70a02d",
+            team_id="Engineering",
             title="New exception",
             description="More detailed error report in **markdown**",
             priority=2,
@@ -162,32 +162,37 @@ for child in detail.children:
     print("sub-issue:", child.identifier, child.title)
 ```
 
-## Looking things up by name (instead of UUIDs)
+## Passing names instead of UUIDs
 
-Most calls take UUIDs. Use the `find_*` resolvers to turn a human name/key/email into
-the entity (and its `.id`) first:
+`create_issue` and `update_issue` automatically resolve non-UUID strings to UUIDs, so
+you can pass human-readable names without a separate lookup:
 
 ```python
-from linear_python_client import (
-    FindTeamRequest, FindUserRequest, FindProjectRequest, FindLabelRequest,
-    IssueCreateRequest,
-)
-
-team = client.find_team(FindTeamRequest(key="RAV")).team        # or name="Ravens"
-assignee = client.find_user(FindUserRequest(name="Elijah Winter")).user  # or email=...
-bug = client.find_label(FindLabelRequest(name="bug", team_id=team.id)).label
+from linear_python_client import IssueCreateRequest
 
 client.create_issue(IssueCreateRequest(
-    team_id=team.id,
+    team_id="Engineering",            # team display name, or "ENG" for the key
     title="New issue",
-    assignee_id=assignee.id,
-    label_ids=[bug.id],
+    assignee_id="alice@example.com",  # email, or display name
+    label_ids=["bug", "urgent"],      # label names
+    project_id="Roadmap",             # project name
+    state_id="In Progress",           # workflow state name (create only)
 ))
 ```
 
-Each resolver returns the matching entity, or `None` if nothing matches. Name matching
-is case-insensitive; team `key` is matched exactly. `find_workflow_state` (for statuses)
-works the same way.
+UUID values are passed through untouched. For everything else, the `find_*` resolvers
+turn a name/key/email into the entity (and its `.id`) explicitly:
+
+```python
+from linear_python_client import FindTeamRequest, FindUserRequest, FindLabelRequest
+
+team = client.find_team(FindTeamRequest(key="RAV")).team              # or name="Ravens"
+user = client.find_user(FindUserRequest(name="Elijah Winter")).user   # or email=...
+bug  = client.find_label(FindLabelRequest(name="bug", team_id=team.id)).label
+```
+
+Each resolver returns the entity or `None`. Name matching is case-insensitive; team
+`key` is exact.
 
 ## Escape hatch: raw GraphQL
 
@@ -212,18 +217,26 @@ All exceptions subclass `LinearError`:
 
 | Exception | Raised when |
 |-----------|-------------|
-| `LinearAuthenticationError` | Credentials are rejected (HTTP 401/403 or auth error code) |
-| `LinearRateLimitError` | A rate limit is hit (`RATELIMITED`); carries the `X-RateLimit-*` header values |
+| `LinearAuthenticationError` | Credentials are rejected (HTTP 401/403, or `AUTHENTICATION_ERROR` / `UNAUTHENTICATED` / `FORBIDDEN` error code) |
+| `LinearRateLimitError` | A rate limit is hit; carries all `X-RateLimit-*` header values including endpoint-level limits |
 | `LinearGraphQLError` | The API returns GraphQL `errors`; exposes `.errors` and `.code` |
-| `LinearNetworkError` | The request never produced a usable response |
+| `LinearNetworkError` | The request never produced a usable response (connection error, non-JSON body) |
+| `LinearServerError` | Linear returned HTTP 5xx; exposes `.status_code` and `.body_preview` |
+
+Error messages include the error code, Linear's `userPresentableMessage`, and any
+field-level validation details.
 
 ```python
-from linear_python_client import LinearClient, LinearRateLimitError, IssuesRequest
+from linear_python_client import LinearClient, LinearRateLimitError, LinearServerError, IssuesRequest
 
 try:
     client.issues(IssuesRequest(first=100))
 except LinearRateLimitError as exc:
     print("Rate limited; resets at", exc.requests_reset)
+    if exc.endpoint_name:
+        print(f"  endpoint {exc.endpoint_name!r}: {exc.endpoint_requests_remaining} remaining")
+except LinearServerError as exc:
+    print(f"Linear server error HTTP {exc.status_code}")
 ```
 
 ## Available client methods
@@ -281,10 +294,17 @@ prints after each run — add `--cov-report=html` for an annotated HTML report i
 
 ### Live smoke test
 
-`scripts/smoke_test.py` exercises **every** client method against the real Linear API
-and, after each mutation, re-pulls the issue to confirm the change landed (create →
-update → set status → add/remove label → comment → full details). It creates one
-clearly-labelled test issue and archives it at the end, so it cleans up after itself.
+`scripts/smoke_test.py` exercises **every** client method against the real Linear API.
+It covers:
+
+- All read-only endpoints (viewer, users, teams, projects, labels, states, comments, pagination)
+- Resolvers both ways: `find_*` by UUID **and** by name/key/email
+- Auto-resolution end-to-end: `create_issue` with team name, assignee name, and label names
+- `issue()` by UUID **and** by human identifier (e.g. `"ENG-123"`)
+- All mutations (create → update → set status → add/remove label → comment → full details)
+
+After each mutation it re-pulls the issue to confirm the change landed. It creates
+clearly-labelled test issues and archives them at the end.
 
 ```sh
 LINEAR_API_KEY=lin_api_... uv run python scripts/smoke_test.py
@@ -292,8 +312,10 @@ LINEAR_API_KEY=lin_api_... uv run python scripts/smoke_test.py
 LINEAR_API_KEY=... LINEAR_TEAM_ID=<uuid> uv run python scripts/smoke_test.py
 ```
 
-It prints a ✓/✗ per check and exits non-zero if any fail. Because it writes to your
-workspace, it's a manual script — it is not part of `pytest`.
+It prints a ✓/✗ per check and exits non-zero if any fail. The smoke test is also run
+automatically as part of the release pipeline via
+[`.github/workflows/smoke.yml`](.github/workflows/smoke.yml), which can be triggered
+manually via `workflow_dispatch` or is called by `publish.yml` on every release.
 
 ### Building & releasing
 
@@ -307,8 +329,10 @@ uvx twine check dist/*  # validate metadata / README rendering
 Releases are automated by [`.github/workflows/publish.yml`](.github/workflows/publish.yml).
 On every push and PR it lints, tests (with the coverage gate), builds the sdist + wheel,
 validates the metadata, and smoke-tests that the wheel installs and imports. When a
-**GitHub Release is published**, it additionally publishes the build to PyPI — after
-which `pip install linear-python-client` and `uv add linear-python-client` work.
+**GitHub Release is published**, it additionally runs the live smoke test suite against
+the real Linear API (requires a `LINEAR_API_KEY` repository secret) and then publishes
+to PyPI — only if all checks pass. After publishing, `pip install linear-python-client`
+and `uv add linear-python-client` work.
 
 Publishing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)
 (OIDC), so no API token or secret is stored. One-time setup:

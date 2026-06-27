@@ -166,22 +166,61 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             r.check("paginate(issues)", False, f"raised {type(exc).__name__}: {exc}")
 
-        # -- name/key resolvers ---------------------------------------------
-        section("Resolvers (name/key -> entity)")
-        resolved_team = r.run(
+        # Fetch team-scoped labels early — used in both auto-resolution and
+        # add_label/remove_label sections below.
+        team_labels = (
+            r.run(
+                "issue_labels(team-scoped)",
+                lambda: client.issue_labels(
+                    IssueLabelsRequest(filter={"team": {"id": {"eq": team_id}}}, first=50)
+                ).nodes,
+            )
+            or []
+        )
+
+        # -- resolvers: UUID → same entity, name/key → UUID ----------------
+        section("Resolvers: UUID and name/key lookups")
+
+        # find_team by key (existing)
+        resolved_team_by_key = r.run(
             "find_team(by key)",
             lambda: client.find_team(FindTeamRequest(key=team.key)).team,
         )
         r.check(
-            "find_team resolves to same id",
-            bool(resolved_team and resolved_team.id == team_id),
+            "find_team(key) resolves to same id",
+            bool(resolved_team_by_key and resolved_team_by_key.id == team_id),
         )
+
+        # find_team by display name (new)
+        if team.name:
+            resolved_team_by_name = r.run(
+                "find_team(by name)",
+                lambda: client.find_team(FindTeamRequest(name=team.name)).team,
+            )
+            r.check(
+                "find_team(name) resolves to same id",
+                bool(resolved_team_by_name and resolved_team_by_name.id == team_id),
+            )
+
         if viewer and viewer.name:
-            found_user = r.run(
+            # find_user by display name
+            found_user_by_name = r.run(
                 "find_user(by name)",
                 lambda: client.find_user(FindUserRequest(name=viewer.name)).user,
             )
-            r.check("find_user resolves to a user", bool(found_user and found_user.id))
+            r.check("find_user(name) resolves to a user", bool(found_user_by_name and found_user_by_name.id))
+
+            # find_user by email (new)
+            if viewer.email:
+                found_user_by_email = r.run(
+                    "find_user(by email)",
+                    lambda: client.find_user(FindUserRequest(email=viewer.email)).user,
+                )
+                r.check(
+                    "find_user(email) resolves to viewer",
+                    bool(found_user_by_email and found_user_by_email.id == viewer.id),
+                )
+
         if projects:
             r.run(
                 "find_project(by name)",
@@ -189,6 +228,127 @@ def main() -> int:
             )
         else:
             r.skip("find_project()", "no projects in workspace")
+
+        # find_label by name (if labels available for this team)
+        if team_labels:
+            label_for_resolve = team_labels[0]
+            resolved_label = r.run(
+                "find_label(by name)",
+                lambda: client.find_label(
+                    FindLabelRequest(name=label_for_resolve.name, team_id=team_id)
+                ).label,
+            )
+            r.check(
+                "find_label(name) resolves to same id",
+                bool(resolved_label and resolved_label.id == label_for_resolve.id),
+            )
+        else:
+            r.skip("find_label(by name)", f"team {team.key} has no team-scoped labels")
+
+        # -- auto-resolution: create_issue with names instead of UUIDs -----
+        section("Auto-resolution: create_issue with name/key IDs")
+
+        # Use team name as the team_id (non-UUID string → auto-resolved)
+        auto_team_ref = team.name or team.key
+        auto_title = f"{MARKER} auto-resolve {int(time.time())}"
+
+        # 1. Resolve team by name
+        auto_created = r.run(
+            f"create_issue(team_id={auto_team_ref!r})",
+            lambda: client.create_issue(
+                IssueCreateRequest(team_id=auto_team_ref, title=auto_title)
+            ),
+        )
+        if auto_created and auto_created.success and auto_created.issue:
+            r.check(
+                "team name resolved → issue created",
+                True,
+                auto_created.issue.identifier,
+            )
+            r.run(
+                "archive team-name-resolved issue",
+                lambda: client.archive_issue(IssueArchiveRequest(id=auto_created.issue.id)),
+            )
+        else:
+            r.check("team name resolved → issue created", False)
+
+        # 2. Resolve assignee by name (if viewer has a display name)
+        if viewer and viewer.name:
+            auto_assignee_title = f"{auto_title} (assignee)"
+            auto_with_assignee = r.run(
+                f"create_issue(team_id=name, assignee_id={viewer.name!r})",
+                lambda: client.create_issue(
+                    IssueCreateRequest(
+                        team_id=auto_team_ref,
+                        title=auto_assignee_title,
+                        assignee_id=viewer.name,
+                    )
+                ),
+            )
+            if auto_with_assignee and auto_with_assignee.success and auto_with_assignee.issue:
+                assignee_issue_id = auto_with_assignee.issue.id
+                auto_pulled = r.run(
+                    "pull assignee-resolved issue",
+                    lambda: client.issue(IssueRequest(id=assignee_issue_id)).issue,
+                )
+                r.check(
+                    "assignee name resolved → assignee set correctly",
+                    bool(
+                        auto_pulled
+                        and auto_pulled.assignee
+                        and auto_pulled.assignee.id == viewer.id
+                    ),
+                )
+                r.run(
+                    "archive assignee-resolved issue",
+                    lambda: client.archive_issue(IssueArchiveRequest(id=assignee_issue_id)),
+                )
+            else:
+                r.check("assignee name resolved → issue created", False)
+        else:
+            r.skip(
+                "create_issue(assignee_id=name)",
+                "viewer has no display name",
+            )
+
+        # 3. Resolve label by name (if team has labels)
+        if team_labels:
+            label_for_auto = team_labels[0]
+            auto_label_title = f"{auto_title} (label)"
+            auto_with_label = r.run(
+                f"create_issue(team_id=name, label_ids=[{label_for_auto.name!r}])",
+                lambda: client.create_issue(
+                    IssueCreateRequest(
+                        team_id=auto_team_ref,
+                        title=auto_label_title,
+                        label_ids=[label_for_auto.name],
+                    )
+                ),
+            )
+            if auto_with_label and auto_with_label.success and auto_with_label.issue:
+                label_issue_id = auto_with_label.issue.id
+                label_pulled = r.run(
+                    "pull label-resolved issue",
+                    lambda: client.issue(IssueRequest(id=label_issue_id)).issue,
+                )
+                r.check(
+                    "label name resolved → label set correctly",
+                    bool(
+                        label_pulled
+                        and any(lbl.id == label_for_auto.id for lbl in label_pulled.labels)
+                    ),
+                )
+                r.run(
+                    "archive label-resolved issue",
+                    lambda: client.archive_issue(IssueArchiveRequest(id=label_issue_id)),
+                )
+            else:
+                r.check("label name resolved → issue created", False)
+        else:
+            r.skip(
+                "create_issue(label_ids=[name])",
+                f"team {team.key} has no team-scoped labels",
+            )
 
         # -- create + verify ------------------------------------------------
         section("Create issue (+ pull to verify)")
@@ -205,13 +365,26 @@ def main() -> int:
             r.check("create_issue succeeded", False)
             return _summary(r)
         issue_id = created.issue.id
-        print(f"  created issue: {created.issue.identifier} ({issue_id})")
+        issue_identifier = created.issue.identifier
+        print(f"  created issue: {issue_identifier} ({issue_id})")
 
         def pull():
             return client.issue(IssueRequest(id=issue_id)).issue
 
         pulled = pull()
-        r.check("pull: title matches", bool(pulled and pulled.title == title), title)
+        r.check("pull(UUID): title matches", bool(pulled and pulled.title == title), title)
+
+        # issue() by human identifier (e.g. "ENG-123") instead of UUID
+        if issue_identifier:
+            pulled_by_identifier = r.run(
+                f"issue(by identifier={issue_identifier!r})",
+                lambda: client.issue(IssueRequest(id=issue_identifier)).issue,
+            )
+            r.check(
+                "issue(identifier) matches UUID fetch",
+                bool(pulled_by_identifier and pulled_by_identifier.id == issue_id),
+                issue_identifier,
+            )
 
         try:
             # -- update + verify -------------------------------------------
@@ -259,26 +432,8 @@ def main() -> int:
 
             # -- add / remove label + verify -------------------------------
             section("add_label / remove_label (+ pull to verify)")
-            # A workspace may scope labels per team; a label from another team is
-            # rejected ("labelIds for incorrect team"), so pick one for THIS team.
-            team_labels = (
-                r.run(
-                    "issue_labels(team-scoped)",
-                    lambda: client.issue_labels(
-                        IssueLabelsRequest(filter={"team": {"id": {"eq": team_id}}}, first=50)
-                    ).nodes,
-                )
-                or []
-            )
             if team_labels:
                 label = team_labels[0]
-                resolved_label = r.run(
-                    "find_label(by name)",
-                    lambda: client.find_label(
-                        FindLabelRequest(name=label.name, team_id=team_id)
-                    ).label,
-                )
-                r.check("find_label resolves a label", bool(resolved_label and resolved_label.id))
                 r.run(
                     "add_label()",
                     lambda: client.add_label(

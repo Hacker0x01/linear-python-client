@@ -54,8 +54,15 @@ jobs:
           name: dist
           path: dist/
 
-  publish:
+  smoke:
     needs: [test, build]
+    uses: ./.github/workflows/smoke.yml
+    if: github.event_name == 'release'
+    secrets:
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+
+  publish:
+    needs: [test, build, smoke]
     if: github.event_name == 'release'
     runs-on: ubuntu-latest
     environment:

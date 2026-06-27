@@ -9,6 +9,7 @@ from .errors import (
     LinearGraphQLError,
     LinearNetworkError,
     LinearRateLimitError,
+    LinearServerError,
 )
 from .models.entities import (
     Attachment,
@@ -89,6 +90,7 @@ __all__ = [
     "LinearRateLimitError",
     "LinearGraphQLError",
     "LinearNetworkError",
+    "LinearServerError",
     # models
     "LinearModel",
     "Attachment",
