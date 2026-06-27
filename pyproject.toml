@@ -1,6 +1,6 @@
 [project]
 name = "linear-python-client"
-version = "0.2.1"
+version = "0.2.2"
 description = "Pragmatic Python client for the Linear GraphQL API"
 readme = "README.md"
 license = "MIT"
