@@ -1,13 +1,13 @@
-name: Publish
+name: CI
 
-# Runs ONLY when a GitHub Release is published.
-# publish is unconditional here — if this workflow fires, it's always a release.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +19,16 @@ jobs:
 
       - name: Lint
         run: uv run ruff check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Test (with coverage gate)
         run: uv run pytest
@@ -45,36 +55,10 @@ jobs:
           uv pip install --python /tmp/install-check dist/*.whl
           /tmp/install-check/bin/python -c "import linear_python_client; print('installed', linear_python_client.__version__)"
 
-      - name: Upload distribution artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
+  # Live smoke test runs on every push to main (not PRs, to avoid API calls on every review).
   smoke:
-    needs: [test, build]
+    needs: [lint, test, build]
+    if: github.event_name == 'push'
     uses: ./.github/workflows/smoke.yml
     secrets:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
-
-  publish:
-    needs: [test, build, smoke]
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/linear-python-client
-    permissions:
-      # Required for PyPI Trusted Publishing (OIDC); no API token needed.
-      id-token: write
-    steps:
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Download distribution artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-      - name: Publish to PyPI
-        run: uv publish --trusted-publishing always
