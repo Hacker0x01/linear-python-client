@@ -20,6 +20,9 @@ jobs:
       - name: Lint
         run: uv run ruff check
 
+      - name: Type check
+        run: uv run mypy src/linear_python_client
+
   test:
     runs-on: ubuntu-latest
     steps:

@@ -8,6 +8,8 @@ exposing `success` alongside the affected entity.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from pydantic import Field
 
 from .entities import (
@@ -34,7 +36,7 @@ class ConnectionResponse[NodeT](LinearModel):
     nodes: list[NodeT] = Field(default_factory=list)
     page_info: PageInfo = Field(default_factory=PageInfo)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[NodeT]:  # type: ignore[override]
         """Iterate over `nodes`."""
         return iter(self.nodes)
 

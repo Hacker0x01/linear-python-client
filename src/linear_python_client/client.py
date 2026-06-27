@@ -320,7 +320,9 @@ class LinearClient:
                 complexity_reset=_to_int(h.get("X-RateLimit-Complexity-Reset")),
                 query_complexity=_to_int(h.get("X-Complexity")),
                 endpoint_requests_limit=_to_int(h.get("X-RateLimit-Endpoint-Requests-Limit")),
-                endpoint_requests_remaining=_to_int(h.get("X-RateLimit-Endpoint-Requests-Remaining")),
+                endpoint_requests_remaining=_to_int(
+                    h.get("X-RateLimit-Endpoint-Requests-Remaining")
+                ),
                 endpoint_requests_reset=_to_int(h.get("X-RateLimit-Endpoint-Requests-Reset")),
                 endpoint_name=h.get("X-RateLimit-Endpoint-Name"),
             )
@@ -334,10 +336,10 @@ class LinearClient:
     def _lookup_team(self, name_or_key: str) -> str:
         """Resolve a team display name or key to a UUID."""
         resp = self.find_team(FindTeamRequest(name=name_or_key))
-        if resp.team is not None:
+        if resp.team is not None and resp.team.id is not None:
             return resp.team.id
         resp = self.find_team(FindTeamRequest(key=name_or_key))
-        if resp.team is not None:
+        if resp.team is not None and resp.team.id is not None:
             return resp.team.id
         raise ValueError(f"Team not found: {name_or_key!r}")
 
@@ -349,30 +351,28 @@ class LinearClient:
             else FindUserRequest(name=name_or_email)
         )
         user = self.find_user(req).user
-        if user is None:
+        if user is None or user.id is None:
             raise ValueError(f"User not found: {name_or_email!r}")
         return user.id
 
     def _lookup_project(self, name: str) -> str:
         """Resolve a project name to a UUID."""
         project = self.find_project(FindProjectRequest(name=name)).project
-        if project is None:
+        if project is None or project.id is None:
             raise ValueError(f"Project not found: {name!r}")
         return project.id
 
     def _lookup_label(self, name: str, *, team_id: str | None = None) -> str:
         """Resolve a label name to a UUID, optionally scoped to a team."""
         label = self.find_label(FindLabelRequest(name=name, team_id=team_id)).label
-        if label is None:
+        if label is None or label.id is None:
             raise ValueError(f"Label not found: {name!r}")
         return label.id
 
     def _lookup_workflow_state(self, name: str, team_id: str) -> str:
         """Resolve a workflow state name to a UUID within a team."""
-        state = self.find_workflow_state(
-            FindWorkflowStateRequest(team_id=team_id, name=name)
-        ).state
-        if state is None:
+        state = self.find_workflow_state(FindWorkflowStateRequest(team_id=team_id, name=name)).state
+        if state is None or state.id is None:
             raise ValueError(f"Workflow state {name!r} not found in team {team_id!r}")
         return state.id
 
