@@ -121,7 +121,11 @@ def main() -> int:
 
         # LINEAR_TEAM_ID may be a UUID or a team key (e.g. "RAV"); team() resolves
         # both, but filters and mutations need the canonical UUID, so use team.id.
-        team_ref = os.environ.get("LINEAR_TEAM_ID") or teams[0].id
+        # Default to the Security team; fall back to the first available team.
+        team_ref = os.environ.get("LINEAR_TEAM_ID")
+        if not team_ref:
+            security = next((t for t in teams if t.name == "Security"), None)
+            team_ref = (security.id if security and security.id else None) or teams[0].id
         team = r.run(f"team(id={team_ref})", lambda: client.team(TeamRequest(id=team_ref)).team)
         if not team:
             print(f"\nCould not resolve team {team_ref!r}; cannot run issue checks.")
