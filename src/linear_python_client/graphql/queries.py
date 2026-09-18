@@ -138,6 +138,14 @@ fragment IssueDetailFields on Issue {
   children { nodes { ...IssueSummaryFields } }
   subscribers { nodes { ...UserFields } }
   relations { nodes { type relatedIssue { ...IssueSummaryFields } } }
+  sharedAccess {
+    isShared
+    viewerHasOnlySharedAccess
+    sharedWithCount
+    sharedWithUsers { id name email }
+    disallowedIssueFields
+  }
+  inheritsSharedAccess
 }
 """
 
@@ -397,6 +405,38 @@ ISSUE_REMOVE_LABEL = _compose(
     """
 mutation IssueRemoveLabel($id: String!, $labelId: String!) {
   issueRemoveLabel(id: $id, labelId: $labelId) {
+    success
+    issue { ...IssueFields }
+  }
+}
+""",
+)
+
+ISSUE_SHARE = _compose(
+    ISSUE_FIELDS,
+    USER_FIELDS,
+    TEAM_FIELDS,
+    STATE_FIELDS,
+    LABEL_FIELDS,
+    """
+mutation IssueShare($id: String!, $userId: String!) {
+  issueShare(id: $id, userId: $userId) {
+    success
+    issue { ...IssueFields }
+  }
+}
+""",
+)
+
+ISSUE_UNSHARE = _compose(
+    ISSUE_FIELDS,
+    USER_FIELDS,
+    TEAM_FIELDS,
+    STATE_FIELDS,
+    LABEL_FIELDS,
+    """
+mutation IssueUnshare($id: String!, $userId: String!) {
+  issueUnshare(id: $id, userId: $userId) {
     success
     issue { ...IssueFields }
   }

@@ -134,6 +134,16 @@ class Issue(LinearModel):
         return _unwrap_nodes(value)
 
 
+class IssueSharedAccess(LinearModel):
+    """The sharing state of an issue, exposed by :attr:`IssueDetail.shared_access`."""
+
+    is_shared: bool = False
+    viewer_has_only_shared_access: bool = False
+    shared_with_count: int = 0
+    shared_with_users: list[User] = Field(default_factory=list)
+    disallowed_issue_fields: list[str] = Field(default_factory=list)
+
+
 class Attachment(LinearModel):
     """A link or file attached to an issue."""
 
@@ -177,6 +187,8 @@ class IssueDetail(Issue):
     children: list[Issue] = Field(default_factory=list)
     subscribers: list[User] = Field(default_factory=list)
     relations: list[IssueRelation] = Field(default_factory=list)
+    shared_access: IssueSharedAccess | None = None
+    inherits_shared_access: bool | None = None
 
     @field_validator(
         "comments", "attachments", "children", "subscribers", "relations", mode="before"

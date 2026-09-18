@@ -162,6 +162,58 @@ for child in detail.children:
     print("sub-issue:", child.identifier, child.title)
 ```
 
+## Sharing issues
+
+Share a private-team issue with a specific user, or revoke that access:
+
+```python
+from linear_python_client import (
+    FindUserRequest,
+    IssueShareRequest,
+    IssueUnshareRequest,
+    IssueRequest,
+)
+
+# Resolve the user UUID first
+user = client.find_user(FindUserRequest(email="collab@partner.com")).user
+if user is None:
+    raise ValueError("no Linear user for that email")
+
+# Share
+client.share_issue(IssueShareRequest(id="SEC-123", user_id=user.id))
+
+# Verify: re-pull the issue detail and inspect sharedAccess
+detail = client.issue_details(IssueRequest(id="SEC-123")).issue
+print(detail.shared_access.is_shared)          # True
+print(detail.shared_access.shared_with_count)  # 1
+
+# Revoke
+client.unshare_issue(IssueUnshareRequest(id="SEC-123", user_id=user.id))
+```
+
+**Preconditions** (enforced by the API; failures raise `LinearGraphQLError`):
+
+1. The acting principal must have native access to the **entire sub-issue tree**,
+   not just the top-level issue.
+2. The team must have **issue sharing enabled** and the principal must satisfy its
+   `securitySettings.issueSharing` role (`member` or `owner`).
+3. Sub-issues that **inherit sharing from their parent** cannot be shared/unshared
+   directly — set `inherits_shared_access=False` via `update_issue` first.
+
+### Filtering by shared access
+
+`IssueFilter` already supports `sharedWith` (a user filter) and `hasSharedUsers`
+(a relation-exists comparator). Because list methods pass `filter` through as a
+raw dict, this already works without any additional client code:
+
+```python
+# Issues shared with a specific user
+client.issues(IssuesRequest(filter={"sharedWith": {"id": {"eq": "<user-uuid>"}}}))
+
+# Issues that have any shared users
+client.issues(IssuesRequest(filter={"hasSharedUsers": {"eq": True}}))
+```
+
 ## Passing names instead of UUIDs
 
 `create_issue` and `update_issue` automatically resolve non-UUID strings to UUIDs, so
@@ -258,6 +310,8 @@ Each method maps a `*Request` to a `*Response`:
 | `archive_issue(...)` | `IssueArchiveRequest` | `ArchiveIssueResponse` |
 | `add_label(...)` | `IssueAddLabelRequest` | `AddLabelResponse` |
 | `remove_label(...)` | `IssueRemoveLabelRequest` | `RemoveLabelResponse` |
+| `share_issue(...)` | `IssueShareRequest` | `ShareIssueResponse` |
+| `unshare_issue(...)` | `IssueUnshareRequest` | `UnshareIssueResponse` |
 | `set_issue_state(...)` | `IssueSetStateRequest` | `UpdateIssueResponse` |
 | `project(...)` | `ProjectRequest` | `ProjectResponse` |
 | `projects(...)` | `ProjectsRequest` | `ProjectsResponse` |

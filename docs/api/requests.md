@@ -26,6 +26,8 @@ method takes exactly one of these.
         - IssueArchiveRequest
         - IssueAddLabelRequest
         - IssueRemoveLabelRequest
+        - IssueShareRequest
+        - IssueUnshareRequest
         - IssueSetStateRequest
         - FindWorkflowStateRequest
         - FindTeamRequest

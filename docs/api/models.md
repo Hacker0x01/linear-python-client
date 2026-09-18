@@ -15,6 +15,7 @@ requested are populated.
         - Team
         - Issue
         - IssueDetail
+        - IssueSharedAccess
         - Project
         - Comment
         - WorkflowState

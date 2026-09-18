@@ -30,4 +30,6 @@ The typed result models returned by each
         - ArchiveIssueResponse
         - AddLabelResponse
         - RemoveLabelResponse
+        - ShareIssueResponse
+        - UnshareIssueResponse
         - CreateCommentResponse

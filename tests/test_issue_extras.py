@@ -1,4 +1,4 @@
-"""Coverage of labels, status updates, and full issue details."""
+"""Coverage of labels, status updates, full issue details, and issue sharing."""
 
 from __future__ import annotations
 
@@ -17,12 +17,18 @@ from linear_python_client import (
     IssueRemoveLabelRequest,
     IssueRequest,
     IssueSetStateRequest,
+    IssueSharedAccess,
+    IssueShareRequest,
+    IssueUnshareRequest,
     LinearClient,
     RemoveLabelResponse,
+    ShareIssueResponse,
+    UnshareIssueResponse,
     UpdateIssueResponse,
     WorkflowStateResponse,
 )
 from linear_python_client.client import DEFAULT_ENDPOINT
+from linear_python_client.errors import LinearGraphQLError
 
 
 def gql_response(data: dict) -> httpx.Response:
@@ -118,9 +124,7 @@ def test_find_workflow_state_match(client: LinearClient) -> None:
 
 @respx.mock
 def test_find_workflow_state_no_match(client: LinearClient) -> None:
-    respx.post(DEFAULT_ENDPOINT).mock(
-        return_value=gql_response({"workflowStates": {"nodes": []}})
-    )
+    respx.post(DEFAULT_ENDPOINT).mock(return_value=gql_response({"workflowStates": {"nodes": []}}))
     resp = client.find_workflow_state(FindWorkflowStateRequest(team_id="t1", name="Nope"))
     assert resp.state is None
 
@@ -191,3 +195,120 @@ def test_issue_detail_collections_default_empty() -> None:
     assert issue.parent is None
     assert issue.project is None
     assert issue.cycle is None
+
+
+# -- issue sharing ----------------------------------------------------------
+
+
+@respx.mock
+def test_share_issue_success(client: LinearClient) -> None:
+    route = respx.post(DEFAULT_ENDPOINT).mock(
+        return_value=gql_response(
+            {"issueShare": {"success": True, "issue": {"id": "i1", "identifier": "SEC-1"}}}
+        )
+    )
+    resp = client.share_issue(IssueShareRequest(id="i1", user_id="u1"))
+    assert isinstance(resp, ShareIssueResponse)
+    assert resp.success is True
+    assert resp.issue.identifier == "SEC-1"
+    body = last_body(route)
+    assert "issueShare" in body["query"]
+    assert body["variables"] == {"id": "i1", "userId": "u1"}
+
+
+@respx.mock
+def test_unshare_issue_success(client: LinearClient) -> None:
+    route = respx.post(DEFAULT_ENDPOINT).mock(
+        return_value=gql_response(
+            {"issueUnshare": {"success": True, "issue": {"id": "i1", "identifier": "SEC-1"}}}
+        )
+    )
+    resp = client.unshare_issue(IssueUnshareRequest(id="i1", user_id="u1"))
+    assert isinstance(resp, UnshareIssueResponse)
+    assert resp.success is True
+    assert resp.issue.identifier == "SEC-1"
+    body = last_body(route)
+    assert "issueUnshare" in body["query"]
+    assert body["variables"] == {"id": "i1", "userId": "u1"}
+
+
+@respx.mock
+def test_share_issue_graphql_error_propagates(client: LinearClient) -> None:
+    respx.post(DEFAULT_ENDPOINT).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "errors": [
+                    {
+                        "message": "Issue sharing is not enabled for this team",
+                        "extensions": {"code": "BAD_USER_INPUT"},
+                    }
+                ]
+            },
+        )
+    )
+    with pytest.raises(LinearGraphQLError):
+        client.share_issue(IssueShareRequest(id="i1", user_id="u1"))
+
+
+@respx.mock
+def test_issue_details_parses_shared_access(client: LinearClient) -> None:
+    respx.post(DEFAULT_ENDPOINT).mock(
+        return_value=gql_response(
+            {
+                "issue": {
+                    "id": "i1",
+                    "identifier": "SEC-1",
+                    "title": "Shared issue",
+                    "inheritsSharedAccess": False,
+                    "sharedAccess": {
+                        "isShared": True,
+                        "viewerHasOnlySharedAccess": False,
+                        "sharedWithCount": 1,
+                        "sharedWithUsers": [
+                            {"id": "u1", "name": "Alice", "email": "alice@example.com"}
+                        ],
+                        "disallowedIssueFields": ["teamId"],
+                    },
+                }
+            }
+        )
+    )
+    resp = client.issue_details(IssueRequest(id="SEC-1"))
+    issue = resp.issue
+    assert isinstance(issue, IssueDetail)
+    assert issue.inherits_shared_access is False
+    assert isinstance(issue.shared_access, IssueSharedAccess)
+    assert issue.shared_access.is_shared is True
+    assert issue.shared_access.shared_with_count == 1
+    assert issue.shared_access.shared_with_users[0].name == "Alice"
+    assert "teamId" in issue.shared_access.disallowed_issue_fields
+
+
+@respx.mock
+def test_issue_details_not_shared(client: LinearClient) -> None:
+    respx.post(DEFAULT_ENDPOINT).mock(
+        return_value=gql_response(
+            {
+                "issue": {
+                    "id": "i1",
+                    "identifier": "SEC-2",
+                    "title": "Private issue",
+                    "inheritsSharedAccess": False,
+                    "sharedAccess": {
+                        "isShared": False,
+                        "viewerHasOnlySharedAccess": False,
+                        "sharedWithCount": 0,
+                        "sharedWithUsers": [],
+                        "disallowedIssueFields": [],
+                    },
+                }
+            }
+        )
+    )
+    resp = client.issue_details(IssueRequest(id="SEC-2"))
+    issue = resp.issue
+    assert issue.shared_access is not None
+    assert issue.shared_access.is_shared is False
+    assert issue.shared_access.shared_with_count == 0
+    assert issue.shared_access.shared_with_users == []
