@@ -70,7 +70,9 @@ def label_miss() -> httpx.Response:
 
 
 def state_hit(id: str = _STATE_UUID) -> httpx.Response:
-    return gql({"workflowStates": {"nodes": [{"id": id, "name": "In Progress", "type": "started"}]}})
+    return gql(
+        {"workflowStates": {"nodes": [{"id": id, "name": "In Progress", "type": "started"}]}}
+    )
 
 
 def state_miss() -> httpx.Response:
@@ -223,9 +225,7 @@ def test_project_uuid_skips_lookup(client: LinearClient) -> None:
 def test_project_not_found_raises_value_error(client: LinearClient) -> None:
     respx.post(DEFAULT_ENDPOINT).mock(side_effect=[team_hit(), project_miss()])
     with pytest.raises(ValueError, match="Project not found"):
-        client.create_issue(
-            IssueCreateRequest(team_id="Engineering", title="x", project_id="Nope")
-        )
+        client.create_issue(IssueCreateRequest(team_id="Engineering", title="x", project_id="Nope"))
 
 
 # ---------------------------------------------------------------------------
@@ -287,9 +287,7 @@ def test_state_name_resolved_to_uuid(client: LinearClient) -> None:
 @respx.mock
 def test_state_uuid_skips_lookup(client: LinearClient) -> None:
     route = respx.post(DEFAULT_ENDPOINT).mock(side_effect=[team_hit(), create_ok()])
-    client.create_issue(
-        IssueCreateRequest(team_id="Engineering", title="x", state_id=_STATE_UUID)
-    )
+    client.create_issue(IssueCreateRequest(team_id="Engineering", title="x", state_id=_STATE_UUID))
     assert route.call_count == 2
 
 
@@ -297,9 +295,7 @@ def test_state_uuid_skips_lookup(client: LinearClient) -> None:
 def test_state_not_found_raises_value_error(client: LinearClient) -> None:
     respx.post(DEFAULT_ENDPOINT).mock(side_effect=[team_hit(), state_miss()])
     with pytest.raises(ValueError, match="Workflow state"):
-        client.create_issue(
-            IssueCreateRequest(team_id="Engineering", title="x", state_id="Nope")
-        )
+        client.create_issue(IssueCreateRequest(team_id="Engineering", title="x", state_id="Nope"))
 
 
 # ---------------------------------------------------------------------------

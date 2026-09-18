@@ -39,7 +39,9 @@ from .models.requests import (
     IssueRemoveLabelRequest,
     IssueRequest,
     IssueSetStateRequest,
+    IssueShareRequest,
     IssuesRequest,
+    IssueUnshareRequest,
     IssueUpdateRequest,
     PaginatedRequest,
     ProjectRequest,
@@ -66,8 +68,10 @@ from .models.responses import (
     ProjectResponse,
     ProjectsResponse,
     RemoveLabelResponse,
+    ShareIssueResponse,
     TeamResponse,
     TeamsResponse,
+    UnshareIssueResponse,
     UpdateIssueResponse,
     UserResponse,
     UsersResponse,
@@ -627,6 +631,61 @@ class LinearClient:
             queries.ISSUE_REMOVE_LABEL, {"id": request.id, "labelId": request.label_id}
         )
         return RemoveLabelResponse.model_validate(data.get("issueRemoveLabel") or {})
+
+    def share_issue(self, request: IssueShareRequest) -> ShareIssueResponse:
+        """Share an issue with a specific user.
+
+        Resolve the user UUID up front with
+        [`find_user`][linear_python_client.client.LinearClient.find_user] —
+        this method takes a UUID and passes it straight through.
+
+        Args:
+            request: An [`IssueShareRequest`][linear_python_client.IssueShareRequest].
+
+        Returns:
+            A [`ShareIssueResponse`][linear_python_client.ShareIssueResponse]
+            exposing `success` and the updated `issue`.
+
+        Raises:
+            LinearGraphQLError: If sharing is rejected by the API. Common causes:
+
+                1. The principal lacks **native access to the issue's entire
+                   sub-issue tree**.
+                2. The principal lacks **permission to share in that team** —
+                   ``issueSharingEnabled`` must be on and the principal must
+                   satisfy the team's ``securitySettings.issueSharing`` role
+                   (``member`` or ``owner``).
+                3. The issue **inherits sharing from a parent** — unsharing is
+                   only possible at the root. Set ``inherits_shared_access=False``
+                   via ``update_issue`` first.
+        """
+        data = self.execute(queries.ISSUE_SHARE, {"id": request.id, "userId": request.user_id})
+        return ShareIssueResponse.model_validate(data.get("issueShare") or {})
+
+    def unshare_issue(self, request: IssueUnshareRequest) -> UnshareIssueResponse:
+        """Remove a user's shared access to an issue.
+
+        Args:
+            request: An [`IssueUnshareRequest`][linear_python_client.IssueUnshareRequest].
+
+        Returns:
+            An [`UnshareIssueResponse`][linear_python_client.UnshareIssueResponse]
+            exposing `success` and the updated `issue`.
+
+        Raises:
+            LinearGraphQLError: If unsharing is rejected by the API. Common causes:
+
+                1. The principal lacks **native access to the issue's entire
+                   sub-issue tree**.
+                2. The principal lacks **permission to share in that team** —
+                   ``issueSharingEnabled`` must be on and the principal must
+                   satisfy the team's ``securitySettings.issueSharing`` role
+                   (``member`` or ``owner``).
+                3. The issue **inherits sharing from a parent** — see
+                   ``share_issue`` for the workaround.
+        """
+        data = self.execute(queries.ISSUE_UNSHARE, {"id": request.id, "userId": request.user_id})
+        return UnshareIssueResponse.model_validate(data.get("issueUnshare") or {})
 
     def set_issue_state(self, request: IssueSetStateRequest) -> UpdateIssueResponse:
         """Move an issue to a workflow state (status).

@@ -214,6 +214,58 @@ class IssueRemoveLabelRequest(LinearModel):
     label_id: str
 
 
+class IssueShareRequest(LinearModel):
+    """Share an issue with a specific user.
+
+    Attributes:
+        id: UUID or human identifier (e.g. ``"SEC-123"``) of the issue to share.
+        user_id: UUID of the user to grant shared access to.
+
+    Preconditions (enforced by the API, surfaces as
+    :exc:`~linear_python_client.LinearGraphQLError`):
+
+    1. The acting principal must have **native access to the issue's entire
+       sub-issue tree**, not just the top-level issue.
+    2. The acting principal needs **permission to share issues in that issue's
+       team** — the team's ``issueSharingEnabled`` must be on and the principal
+       must satisfy the team's ``securitySettings.issueSharing`` role
+       (``member`` or ``owner``).
+    3. **Issues that inherit sharing from a parent cannot be shared directly.**
+       If ``IssueDetail.inherits_shared_access`` is ``True``, the mutation will
+       error. Set ``inherits_shared_access=False`` via
+       :meth:`~linear_python_client.client.LinearClient.update_issue` first.
+    """
+
+    id: str
+    user_id: str
+
+
+class IssueUnshareRequest(LinearModel):
+    """Remove a user's shared access to an issue.
+
+    Attributes:
+        id: UUID or human identifier (e.g. ``"SEC-123"``) of the issue.
+        user_id: UUID of the user whose shared access to revoke.
+
+    Preconditions (enforced by the API, surfaces as
+    :exc:`~linear_python_client.LinearGraphQLError`):
+
+    1. The acting principal must have **native access to the issue's entire
+       sub-issue tree**, not just the top-level issue.
+    2. The acting principal needs **permission to share issues in that issue's
+       team** — the team's ``issueSharingEnabled`` must be on and the principal
+       must satisfy the team's ``securitySettings.issueSharing`` role
+       (``member`` or ``owner``).
+    3. **Issues that inherit sharing from a parent cannot be unshared directly.**
+       If ``IssueDetail.inherits_shared_access`` is ``True``, the mutation will
+       error. Set ``inherits_shared_access=False`` via
+       :meth:`~linear_python_client.client.LinearClient.update_issue` first.
+    """
+
+    id: str
+    user_id: str
+
+
 class IssueSetStateRequest(LinearModel):
     """Move an issue to a workflow state (status).
 

@@ -175,3 +175,17 @@ class RemoveLabelResponse(LinearModel):
 
     success: bool = False
     issue: Issue | None = None
+
+
+class ShareIssueResponse(LinearModel):
+    """Response for [`share_issue`][linear_python_client.client.LinearClient.share_issue]."""
+
+    success: bool = False
+    issue: Issue | None = None
+
+
+class UnshareIssueResponse(LinearModel):
+    """Response for [`unshare_issue`][linear_python_client.client.LinearClient.unshare_issue]."""
+
+    success: bool = False
+    issue: Issue | None = None

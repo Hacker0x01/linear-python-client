@@ -12,7 +12,9 @@ Usage:
     LINEAR_API_KEY=lin_api_... uv run python scripts/smoke_test.py
 
 Optional environment variables:
-    LINEAR_TEAM_ID    UUID of the team to create the test issue in (default: first team).
+    LINEAR_TEAM_ID              UUID of the team to create the test issue in (default: first team).
+    LINEAR_TEST_SHARE_USER_ID   UUID of a second workspace user to run the share/unshare leg.
+                                If unset, the sharing checks are skipped and the default run passes.
 
 Exit code is non-zero if any check fails.
 """
@@ -41,7 +43,9 @@ from linear_python_client import (
     IssueRemoveLabelRequest,
     IssueRequest,
     IssueSetStateRequest,
+    IssueShareRequest,
     IssuesRequest,
+    IssueUnshareRequest,
     IssueUpdateRequest,
     LinearClient,
     ProjectRequest,
@@ -52,6 +56,7 @@ from linear_python_client import (
     UsersRequest,
     WorkflowStatesRequest,
 )
+from linear_python_client.errors import LinearGraphQLError
 from linear_python_client.graphql import queries
 
 MARKER = "[linear-python-client smoke test]"
@@ -175,9 +180,11 @@ def main() -> int:
         team_labels = (
             r.run(
                 "issue_labels(team-scoped)",
-                lambda: client.issue_labels(
-                    IssueLabelsRequest(filter={"team": {"id": {"eq": team_id}}}, first=50)
-                ).nodes,
+                lambda: (
+                    client.issue_labels(
+                        IssueLabelsRequest(filter={"team": {"id": {"eq": team_id}}}, first=50)
+                    ).nodes
+                ),
             )
             or []
         )
@@ -212,7 +219,10 @@ def main() -> int:
                 "find_user(by name)",
                 lambda: client.find_user(FindUserRequest(name=viewer.name)).user,
             )
-            r.check("find_user(name) resolves to a user", bool(found_user_by_name and found_user_by_name.id))
+            r.check(
+                "find_user(name) resolves to a user",
+                bool(found_user_by_name and found_user_by_name.id),
+            )
 
             # find_user by email (new)
             if viewer.email:
@@ -238,9 +248,11 @@ def main() -> int:
             label_for_resolve = team_labels[0]
             resolved_label = r.run(
                 "find_label(by name)",
-                lambda: client.find_label(
-                    FindLabelRequest(name=label_for_resolve.name, team_id=team_id)
-                ).label,
+                lambda: (
+                    client.find_label(
+                        FindLabelRequest(name=label_for_resolve.name, team_id=team_id)
+                    ).label
+                ),
             )
             r.check(
                 "find_label(name) resolves to same id",
@@ -423,9 +435,11 @@ def main() -> int:
                 )
                 resolved = r.run(
                     "find_workflow_state(by name)",
-                    lambda: client.find_workflow_state(
-                        FindWorkflowStateRequest(team_id=team_id, name=target.name)
-                    ).state,
+                    lambda: (
+                        client.find_workflow_state(
+                            FindWorkflowStateRequest(team_id=team_id, name=target.name)
+                        ).state
+                    ),
                 )
                 r.check(
                     "find_workflow_state resolves to same id",
@@ -440,9 +454,7 @@ def main() -> int:
                 label = team_labels[0]
                 r.run(
                     "add_label()",
-                    lambda: client.add_label(
-                        IssueAddLabelRequest(id=issue_id, label_id=label.id)
-                    ),
+                    lambda: client.add_label(IssueAddLabelRequest(id=issue_id, label_id=label.id)),
                 )
                 pulled = pull()
                 r.check(
@@ -469,14 +481,10 @@ def main() -> int:
             body = f"{MARKER} comment {int(time.time())}"
             created_comment = r.run(
                 "create_comment()",
-                lambda: client.create_comment(
-                    CommentCreateRequest(issue_id=issue_id, body=body)
-                ),
+                lambda: client.create_comment(CommentCreateRequest(issue_id=issue_id, body=body)),
             )
             comment_id = (
-                created_comment.comment.id
-                if created_comment and created_comment.comment
-                else None
+                created_comment.comment.id if created_comment and created_comment.comment else None
             )
             listed = r.run(
                 "comments(issue_id=...)",
@@ -506,6 +514,70 @@ def main() -> int:
                     any(c.body == body for c in detail.comments),
                 )
                 r.check("details: state present", bool(detail.state))
+            # -- issue sharing (conditional on LINEAR_TEST_SHARE_USER_ID) ----
+            section("share_issue / unshare_issue")
+            share_user_id = os.environ.get("LINEAR_TEST_SHARE_USER_ID")
+            if not share_user_id:
+                r.skip(
+                    "share_issue/unshare_issue",
+                    "LINEAR_TEST_SHARE_USER_ID not set — skipping share leg",
+                )
+            else:
+                try:
+                    r.run(
+                        "share_issue()",
+                        lambda: client.share_issue(
+                            IssueShareRequest(id=issue_id, user_id=share_user_id)
+                        ),
+                    )
+                    detail_after_share = r.run(
+                        "issue_details() after share",
+                        lambda: client.issue_details(IssueRequest(id=issue_id)).issue,
+                    )
+                    if detail_after_share and detail_after_share.shared_access:
+                        sa = detail_after_share.shared_access
+                        r.check(
+                            "shared_access.is_shared is True",
+                            sa.is_shared is True,
+                        )
+                        r.check(
+                            "shared_with_count == 1",
+                            sa.shared_with_count == 1,
+                            str(sa.shared_with_count),
+                        )
+                        r.check(
+                            "share user appears in shared_with_users",
+                            any(u.id == share_user_id for u in sa.shared_with_users),
+                        )
+                    else:
+                        r.check("shared_access populated after share", False)
+
+                    r.run(
+                        "unshare_issue()",
+                        lambda: client.unshare_issue(
+                            IssueUnshareRequest(id=issue_id, user_id=share_user_id)
+                        ),
+                    )
+                    detail_after_unshare = r.run(
+                        "issue_details() after unshare",
+                        lambda: client.issue_details(IssueRequest(id=issue_id)).issue,
+                    )
+                    if detail_after_unshare and detail_after_unshare.shared_access:
+                        r.check(
+                            "is_shared is False after unshare",
+                            detail_after_unshare.shared_access.is_shared is False,
+                        )
+                    else:
+                        r.check("shared_access populated after unshare", False)
+                except LinearGraphQLError as exc:
+                    if "sharing" in str(exc).lower() or "not enabled" in str(exc).lower():
+                        r.skip(
+                            "share_issue/unshare_issue",
+                            f"issue sharing not enabled for this workspace/team: {exc}",
+                        )
+                    else:
+                        raise
+
         finally:
             # -- archive (cleanup) + verify --------------------------------
             section("archive_issue (cleanup)")
